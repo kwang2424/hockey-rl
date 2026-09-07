@@ -225,3 +225,43 @@ the default.** You get it for free in the first run. Competent play is the hard
 part. And whatever emerges is emergent behaviour *of this sim*, not of hockey —
 any inaccuracy is something the agents will find and live inside, which is why
 `tests/test_physics.py` is as long as it is.
+
+## What actually happens when you train it
+
+Honest status: **v0 learns, measurably, but is not yet competitive with
+`ChaseBot`.** On 4 CPU cores it needs more compute than a single sitting.
+
+The decisive check is a stripped-down task — reward is *only* the
+puck-proximity term, no goals, no possession bonus — which isolates "can this
+setup learn anything at all?" from "is hockey hard?":
+
+| steps | mean distance to puck | possession |
+|---|---|---|
+| random policy | 13.67 m | 0.001 |
+| 246k | 11.61 m | 0.012 |
+| 492k | 10.59 m | 0.013 |
+| 737k | 9.89 m | 0.035 |
+| 983k | 9.36 m | 0.031 |
+
+Monotonic, and possession up ~30x from random. The machinery works; the full
+game just needs far more of it. Reproduce with the config in
+`PPOConfig(pool_prob=0.0)` and a `replace(DEFAULT, goal_reward=0.0,
+shaping_weight=0.0, possession_weight=0.0, proximity_weight=1.0)` env.
+
+Two things worth knowing before you burn a weekend on this:
+
+- **Watch the gradient-step budget, not the env-step count.** At
+  `num_envs=256, rollout_steps=96, num_minibatches=8` each update spends
+  24,576 env steps on only 32 gradient steps, so 2.5M steps is ~3,200
+  gradient steps — nowhere near enough to conclude anything. Raising
+  `--num-minibatches` to 32 quadruples the gradient steps but was *slower* in
+  wall-clock here (128 tiny matmuls each pay 4-thread sync overhead) and no
+  better per sample at 246k steps. Left at 8.
+- **Self-play evals are noisy.** 64 envs x 400 steps against `random` swings
+  by several goals; the same checkpoint measured 0-4 and then 3-2 a million
+  steps apart. Use `hockey.evaluate`, which swaps ends and gives you a CI,
+  and treat `vs_chase` (hundreds of goals) as the real signal.
+
+Where the compute should go next, in order: more steps, then a GPU with far
+more parallel envs, then a curriculum that starts the puck on your stick so
+scoring is discoverable before puck-winning is solved.
