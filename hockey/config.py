@@ -89,7 +89,15 @@ class Config:
     # off the ground: possession and goals are both far too rare to bootstrap
     # from, but "skate at the puck harder than the other guy" has a gradient
     # on literally the first step.
-    proximity_weight: float = 0.25
+    #
+    # Weighted heavily on purpose. Under a random policy the puck-position
+    # term contributes ~3.5x this term's reward variance, and almost none of
+    # it is yet controllable -- so at a low weight the one signal a fresh
+    # agent CAN act on is buried in noise, and measured learning goes
+    # backwards. Because every term here is potential-based, reweighting
+    # cannot change which policy is optimal; it only changes what is
+    # learnable early.
+    proximity_weight: float = 1.0
     gamma: float = 0.995
 
     # ---- reset ---------------------------------------------------------

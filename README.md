@@ -164,11 +164,23 @@ between the teams so the zero-sum property survives:
 |---|---|---|
 | puck position between the nets | 0.35 | the actual objective |
 | possession | 0.08 | the first thing worth learning |
-| **closer to the puck than your opponent** | 0.25 | the term that gets a fresh policy off the ground |
+| **closer to the puck than your opponent** | 1.00 | the term that gets a fresh policy off the ground |
 
-That third term is load-bearing. Goals and possession are both far too rare for
-a random policy to bootstrap from, but "skate at the puck harder than the other
-guy" has a gradient on literally the first step.
+That third term is load-bearing, and its weight is the single most important
+number in the file. Under a random policy the puck-position term contributes
+~3.5x more per-step reward variance than the proximity term, and almost none
+of that is yet controllable -- so at a low weight the one signal a fresh agent
+*can* act on is buried in noise. Measured over 737k steps on the full reward:
+
+| proximity weight | mean distance to puck (random = 14.21 m) |
+|---|---|
+| 0.25 | 13.29 -> 13.54 -> **13.57** (reverses) |
+| 1.00 | 12.88 -> 12.24 -> **12.15** (monotonic) |
+
+Because every term is potential-based, reweighting like this **cannot change
+which policy is optimal** -- only what is learnable early. That is a genuinely
+useful property to lean on: you can bias hard toward the controllable signal
+without biasing the solution.
 
 ### Self-play
 
@@ -257,6 +269,11 @@ Two things worth knowing before you burn a weekend on this:
   `--num-minibatches` to 32 quadruples the gradient steps but was *slower* in
   wall-clock here (128 tiny matmuls each pay 4-thread sync overhead) and no
   better per sample at 246k steps. Left at 8.
+- **Diagnose with an isolated reward before blaming the algorithm.** Two
+  separate times, "it isn't learning" turned out to be a reward-balance
+  problem rather than a broken trainer. Stripping the reward to a single
+  controllable term and measuring one scalar (mean distance to the puck) is a
+  60-second experiment that settles it.
 - **Self-play evals are noisy.** 64 envs x 400 steps against `random` swings
   by several goals; the same checkpoint measured 0-4 and then 3-2 a million
   steps apart. Use `hockey.evaluate`, which swaps ends and gives you a CI,
