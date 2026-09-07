@@ -114,7 +114,20 @@ Why so many physics tests: **an RL agent will find and exploit any physics bug
 you leave in, and it will look like emergent behaviour until you check.** These
 pin down what must be true no matter what the policy does.
 
-### 5. Plot the curves
+### 5. Watch it in Godot (or Unity)
+
+```bash
+python -m hockey.export --a runs/v1/best.pt --b chase --out viewer/godot/game.json
+godot --path viewer/godot
+```
+
+The sim is decoupled from rendering, so this does *not* mean porting the
+physics into an engine — it exports a state trajectory and replays it, which
+keeps training at full speed and lets the viewer be as pretty as you like. A
+working Godot 4 project is in `viewer/godot/` (play/pause, frame-step, scrub,
+speed control); `viewer/README.md` has the schema and a Unity script sketch.
+
+### 6. Plot the curves
 
 ```bash
 python plot_progress.py runs/v0/progress.csv
@@ -214,6 +227,14 @@ Kept because they're the failure modes this kind of project actually hits:
 
 v0 is deliberately the smallest thing that proves the loop end to end.
 
+- **v1 (in progress) — the puck-on-stick curriculum.** A fraction of resets
+  start with the puck already on a skater's blade, facing the net, with the
+  defender goal-side; the rate anneals from 0.75 to 0.05 over training.
+  Scoring is otherwise gated behind winning the puck, so a fresh policy sees
+  almost no goals and cannot attribute one to anything it did. The curriculum
+  applies to the *training* env only — `Config.puck_on_stick_prob` defaults
+  to 0.0 so no curriculum-inflated number can leak into a reported score, and
+  a test enforces that.
 - **v1 — the stick.** A rigid segment instead of a fixed blade point. The real
   design crux is possession: a magnetic capture radius (what v0 does, and what
   is learnable) versus pure collision physics where carrying means repeated

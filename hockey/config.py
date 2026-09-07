@@ -104,6 +104,17 @@ class Config:
     faceoff_jitter_pos: float = 3.0
     faceoff_jitter_heading: float = 0.5
 
+    # Curriculum: fraction of resets that start with the puck already on a
+    # skater's blade, facing the net, with the defender goal-side. Scoring is
+    # otherwise gated behind winning the puck first, so a fresh policy almost
+    # never sees a goal and has nothing to attribute one to.
+    #
+    # Default 0.0 so evaluation always uses the honest faceoff distribution.
+    # The trainer anneals its OWN env's `curriculum_puck_on_stick` attribute
+    # from high to low; keeping the config default at zero is what stops a
+    # curriculum-inflated number leaking into a reported score.
+    puck_on_stick_prob: float = 0.0
+
     @property
     def control_dt(self) -> float:
         return self.physics_dt * self.substeps

@@ -1,0 +1,21 @@
+; Godot 4 project. Open this folder in Godot 4.2+ and press F5.
+
+config_version=5
+
+[application]
+
+config/name="hockey-rl viewer"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.2", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=620
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+environment/defaults/default_clear_color=Color(0.06, 0.08, 0.11, 1)

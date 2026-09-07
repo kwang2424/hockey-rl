@@ -1,6 +1,7 @@
 """Trainer-level regression tests."""
 
 import numpy as np
+import pytest
 import torch
 
 from rl.ppo import PPOTrainer, PPOConfig
@@ -84,3 +85,50 @@ def test_running_norm_matches_batch_statistics():
         rn.update(chunk)
     assert np.allclose(rn.mean, x.mean(0), atol=1e-6)
     assert np.allclose(rn.var, x.var(0), atol=1e-6)
+
+
+def test_curriculum_anneals_and_never_leaks_into_eval():
+    """The curriculum must apply to the training env only.
+
+    If evaluation inherited it, every reported score would be measured on
+    hand-delivered scoring chances and would look far better than the policy
+    is.
+    """
+    from hockey.config import DEFAULT
+    from hockey.env import VecHockeyEnv
+
+    t = PPOTrainer(PPOConfig(num_envs=8, rollout_steps=8, curriculum_start=0.8,
+                             curriculum_end=0.1, curriculum_frac=0.5))
+    assert t.set_curriculum(0.0) == pytest.approx(0.8)
+    assert t.set_curriculum(0.25) == pytest.approx(0.45)
+    assert t.set_curriculum(0.5) == pytest.approx(0.1)
+    assert t.set_curriculum(1.0) == pytest.approx(0.1), "must clamp, not overshoot"
+    assert t.env.curriculum_puck_on_stick == pytest.approx(0.1)
+
+    # A freshly built env -- which is what evaluation uses -- is unaffected.
+    assert DEFAULT.puck_on_stick_prob == 0.0
+    assert VecHockeyEnv(num_envs=4, seed=0).curriculum_puck_on_stick == 0.0
+
+
+def test_curriculum_starts_are_real_scoring_chances_not_free_goals():
+    """The defender must actually be between the carrier and the net."""
+    import numpy as np
+    from hockey.config import DEFAULT
+    from hockey.env import VecHockeyEnv
+
+    env = VecHockeyEnv(num_envs=1024, seed=3)
+    env.curriculum_puck_on_stick = 1.0
+    env._reset_idx(np.arange(1024))
+
+    carrier = env.possessor
+    assert (carrier >= 0).all()
+    other = 1 - carrier
+    rows = np.arange(1024)
+    net = np.where(carrier[:, None] == 0,
+                   np.array([DEFAULT.goal_line_x, 0.0]),
+                   np.array([-DEFAULT.goal_line_x, 0.0]))
+    cpos = env.skater_pos[rows, carrier]
+    dpos = env.skater_pos[rows, other]
+    # Defender is closer to the net than the carrier is, most of the time.
+    closer = np.linalg.norm(dpos - net, axis=-1) < np.linalg.norm(cpos - net, axis=-1)
+    assert closer.mean() > 0.8, f"defender goal-side only {closer.mean():.2f} of the time"

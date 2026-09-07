@@ -55,6 +55,13 @@ class PPOConfig:
     eval_steps: int = 400
     eval_envs: int = 64
 
+    # Puck-on-stick curriculum, annealed on the *training* env only. Eval
+    # always builds its own env from the Config (default 0.0), so a
+    # curriculum-inflated score can never leak into a reported number.
+    curriculum_start: float = 0.75
+    curriculum_end: float = 0.05
+    curriculum_frac: float = 0.6   # fraction of training spent annealing
+
     seed: int = 0
     device: str = "cpu"
     out_dir: str = "runs/v0"
@@ -87,6 +94,14 @@ class PPOTrainer:
     # ------------------------------------------------------------------
     def policy(self):
         return TorchPolicy(self.net, self.norm, self.device)
+
+    def set_curriculum(self, progress: float):
+        """Anneal the puck-on-stick rate. ``progress`` runs 0 -> 1 over training."""
+        p = self.p
+        frac = min(1.0, max(0.0, progress / max(p.curriculum_frac, 1e-9)))
+        value = p.curriculum_start + (p.curriculum_end - p.curriculum_start) * frac
+        self.env.curriculum_puck_on_stick = float(value)
+        return value
 
     def _snapshot(self):
         sd = copy.deepcopy({k: v.detach().cpu().clone() for k, v in self.net.state_dict().items()})

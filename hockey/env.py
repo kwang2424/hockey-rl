@@ -95,6 +95,9 @@ class VecHockeyEnv:
         self.ep_possession = np.zeros((num_envs, N_AGENTS), dtype=np.float64)
 
         self._goal_centers = rink.goal_centers(cfg)   # row 0: +x net, 1: -x net
+        # Mutable so a trainer can anneal it without rebuilding the env. See
+        # Config.puck_on_stick_prob.
+        self.curriculum_puck_on_stick = float(cfg.puck_on_stick_prob)
         self.reset()
 
     # ------------------------------------------------------------------
@@ -156,6 +159,76 @@ class VecHockeyEnv:
         # Separate any overlapping bodies produced by rejection sampling.
         for _ in range(4):
             self._resolve_skater_pairs()
+
+        self._apply_puck_on_stick(idx)
+
+    def _apply_puck_on_stick(self, idx):
+        """Curriculum: hand some resets a carrier already facing the net.
+
+        Scoring is otherwise gated behind winning the puck, so a fresh policy
+        sees almost no goals and cannot attribute one to anything it did.
+        Starting on the blade makes "shoot at the net" discoverable before
+        "win the puck" is solved.
+
+        The carrier is placed in the attacking half facing the net; the
+        defender is dropped goal-side of it, so the state is a genuine scoring
+        chance rather than a free goal.
+        """
+        p = self.curriculum_puck_on_stick
+        if idx.size == 0 or p <= 0.0:
+            return
+        cfg, rng = self.cfg, self.rng
+        sel = idx[rng.random(idx.size) < p]
+        if sel.size == 0:
+            return
+
+        k = sel.size
+        carrier = rng.integers(0, N_AGENTS, k)
+        sign = np.where(carrier == 0, 1.0, -1.0)        # carrier's attack direction
+
+        # Carrier: somewhere in the attacking half, aimed at the net.
+        dist_out = rng.uniform(6.0, 20.0, k)
+        cx = sign * (cfg.goal_line_x - dist_out)
+        cy = rng.uniform(-cfg.half_width + 2.0, cfg.half_width - 2.0, k)
+        cpos = np.stack([cx, cy], axis=-1)
+
+        net = np.stack([sign * cfg.goal_line_x, np.zeros(k)], axis=-1)
+        to_net = net - cpos
+        theta = np.arctan2(to_net[:, 1], to_net[:, 0]) + rng.normal(0.0, 0.35, k)
+
+        heading = np.stack([np.cos(theta), np.sin(theta)], axis=-1)
+        speed = rng.uniform(0.0, 6.0, k)[:, None]
+
+        # Defender: goal-side of the carrier, i.e. between it and the net.
+        t = rng.uniform(0.25, 0.7, k)[:, None]
+        dpos = cpos + (net - cpos) * t
+        dpos[:, 1] += rng.normal(0.0, 2.0, k)
+        dtheta = np.arctan2(cpos[:, 1] - dpos[:, 1], cpos[:, 0] - dpos[:, 0])
+
+        rows = sel
+        other = 1 - carrier
+        self.skater_pos[rows, carrier] = cpos
+        self.theta[rows, carrier] = theta
+        self.skater_vel[rows, carrier] = heading * speed
+        self.omega[rows, carrier] = 0.0
+
+        self.skater_pos[rows, other] = np.clip(
+            dpos, [-cfg.half_length + 1.5, -cfg.half_width + 1.5],
+            [cfg.half_length - 1.5, cfg.half_width - 1.5])
+        self.theta[rows, other] = dtheta
+        self.skater_vel[rows, other] = 0.0
+        self.omega[rows, other] = 0.0
+
+        # Put the puck exactly on the carrier's blade and hand it possession.
+        self.puck_pos[rows] = cpos + heading * cfg.blade_offset
+        self.puck_vel[rows] = self.skater_vel[rows, carrier]
+        self.possessor[rows] = carrier
+        self.cooldown[rows] = 0.0
+
+        for _ in range(3):
+            self._resolve_skater_pairs()
+        rink.resolve_boards(cfg, self.skater_pos, self.skater_vel,
+                            cfg.skater_radius, cfg.skater_restitution, 0.92)
 
     # ------------------------------------------------------------------
     # step
