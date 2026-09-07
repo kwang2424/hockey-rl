@@ -44,9 +44,9 @@ def main():
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--entropy-coef", type=float, default=0.004)
     ap.add_argument("--pool-prob", type=float, default=0.35)
-    ap.add_argument("--curriculum-start", type=float, default=0.75,
+    ap.add_argument("--curriculum-start", type=float, default=0.0,
                     help="initial fraction of resets that start with the puck on a stick")
-    ap.add_argument("--curriculum-end", type=float, default=0.05)
+    ap.add_argument("--curriculum-end", type=float, default=0.0)
     ap.add_argument("--curriculum-frac", type=float, default=0.6,
                     help="fraction of training spent annealing the curriculum")
     ap.add_argument("--eval-every", type=int, default=15)

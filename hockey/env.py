@@ -484,7 +484,13 @@ class VecHockeyEnv:
         # break the zero-sum property, and potential-based, so it cannot
         # change which policy is optimal -- it only makes the first million
         # steps learnable.
-        to_puck = np.linalg.norm(self.puck_pos[:, None, :] - self.skater_pos, axis=-1)
+        # Measured from the blade, not the body centre: possession requires the
+        # puck within capture_radius of the BLADE, so a body-centre potential
+        # rewards skating at the puck without ever turning to face it -- which
+        # is precisely the behaviour that showed up in v0 (it closed to 9.8m,
+        # near ChaseBot's 7.9m, with possession still at random level).
+        ref = self.blade_points()[0] if cfg.proximity_from_blade else self.skater_pos
+        to_puck = np.linalg.norm(self.puck_pos[:, None, :] - ref, axis=-1)
         phi = phi + cfg.proximity_weight * (to_puck[:, 1] - to_puck[:, 0]) / cfg.rink_length
         return phi
 

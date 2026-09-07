@@ -58,8 +58,14 @@ class PPOConfig:
     # Puck-on-stick curriculum, annealed on the *training* env only. Eval
     # always builds its own env from the Config (default 0.0), so a
     # curriculum-inflated score can never leak into a reported number.
-    curriculum_start: float = 0.75
-    curriculum_end: float = 0.05
+    # Off by default: measured *worse* than no curriculum (a curriculum run
+    # lost 5-47 head-to-head to an otherwise identical run without it). It
+    # trains on states that do not occur under the evaluation distribution,
+    # and the policy did not recover after the anneal. Kept because it is
+    # worth retrying once possession actually works; opt in with
+    # --curriculum-start.
+    curriculum_start: float = 0.0
+    curriculum_end: float = 0.0
     curriculum_frac: float = 0.6   # fraction of training spent annealing
 
     seed: int = 0

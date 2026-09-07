@@ -77,20 +77,77 @@ def test_reward_is_goal_plus_exact_potential_difference():
 
 
 def test_shaping_cannot_be_farmed_by_a_closed_loop():
-    """Returning the puck to where it started must not yield free reward."""
+    """Returning the puck to where it started must not yield free reward.
+
+    The skaters are pinned completely -- position, velocity, heading and spin
+    -- so that the puck really is the only thing that moves and the loop is a
+    genuine closed loop *in state*. Leaving them free to drift and rotate
+    makes the potential change for reasons that have nothing to do with the
+    puck, which quietly weakens the test.
+    """
     env = VecHockeyEnv(num_envs=1, seed=5)
-    env.skater_pos[0] = [[-20.0, 10.0], [-20.0, -10.0]]
+    pinned_pos = np.array([[-20.0, 10.0], [-20.0, -10.0]])
+    pinned_theta = np.array([0.3, -1.1])
+
+    def pin():
+        env.skater_pos[0] = pinned_pos
+        env.skater_vel[0] = 0.0
+        env.theta[0] = pinned_theta
+        env.omega[0] = 0.0
+        env.possessor[:] = -1
+
+    pin()
     env.puck_pos[:] = [0.0, 0.0]
-    env.possessor[:] = -1
-    total = 0.0
+    phi_start = float(env._potential()[0])
+    total, phi_sum = 0.0, 0.0
     for cycle in range(20):                      # push the puck out and back
         for direction in (1.0, -1.0):
             for _ in range(10):
                 env.puck_vel[:] = [6.0 * direction, 0.0]
                 _, rew, _, _, _ = env.step(np.zeros((1, 2, ACT_DIM)))
-                env.possessor[:] = -1
+                pin()
                 total += float(rew[0, 0])
-    assert abs(total) < 0.05, f"closed loop farmed {total:+.4f} of reward"
+                phi_sum += float(env._potential()[0])
+
+    # The puck ends where it began and nothing else has moved, so the
+    # potential must too.
+    assert float(env._potential()[0]) == pytest.approx(phi_start, abs=1e-9)
+
+    # The accumulated shaping is not quite zero, and the reason matters:
+    #   sum[gamma*Phi(s') - Phi(s)] = (Phi_end - Phi_start) - (1-gamma)*sum Phi
+    # The first bracket vanishes on a closed loop, leaving only the discount
+    # drag -- which is NEGATIVE. So a closed loop strictly *costs* reward
+    # rather than paying it, and dithering is penalised. That is the property
+    # worth asserting; the magnitude is predicted, not merely bounded.
+    assert total < 0.0, f"closed loop paid {total:+.6f} -- shaping is farmable"
+    assert total == pytest.approx(-(1.0 - C.gamma) * phi_sum, rel=1e-6)
+
+
+def test_closed_loop_pays_exactly_zero_when_undiscounted():
+    """With gamma = 1 the telescoping is exact and the loop is free, not costly."""
+    cfg = Config(gamma=1.0)
+    env = VecHockeyEnv(num_envs=1, cfg=cfg, seed=5)
+    pinned_pos = np.array([[-20.0, 10.0], [-20.0, -10.0]])
+    pinned_theta = np.array([0.3, -1.1])
+
+    def pin():
+        env.skater_pos[0] = pinned_pos
+        env.skater_vel[0] = 0.0
+        env.theta[0] = pinned_theta
+        env.omega[0] = 0.0
+        env.possessor[:] = -1
+
+    pin()
+    env.puck_pos[:] = [0.0, 0.0]
+    total = 0.0
+    for cycle in range(20):
+        for direction in (1.0, -1.0):
+            for _ in range(10):
+                env.puck_vel[:] = [6.0 * direction, 0.0]
+                _, rew, _, _, _ = env.step(np.zeros((1, 2, ACT_DIM)))
+                pin()
+                total += float(rew[0, 0])
+    assert total == pytest.approx(0.0, abs=1e-9), f"loop paid {total:+.3e}"
 
 
 def test_episode_truncates_at_the_step_limit():

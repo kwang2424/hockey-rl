@@ -98,6 +98,12 @@ class Config:
     # cannot change which policy is optimal; it only changes what is
     # learnable early.
     proximity_weight: float = 1.0
+    # Measure proximity from the stick blade, not the body centre. Possession
+    # requires the puck within capture_radius of the BLADE, which sits
+    # blade_offset ahead of the skater -- so a body-centre potential rewards
+    # closing on the puck without ever facing it, and the two objectives come
+    # apart. Set False only to reproduce the old behaviour.
+    proximity_from_blade: bool = True
     gamma: float = 0.995
 
     # ---- reset ---------------------------------------------------------
