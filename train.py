@@ -86,6 +86,11 @@ def main():
 
     csv_path = os.path.join(args.out, "progress.csv")
     writer, csv_file, t0 = None, None, time.time()
+    # Steps already done before this process started, so the rate we report is
+    # this process's rate. Dividing the cumulative step count by this process's
+    # elapsed time inflates it badly after a resume (27k/s reported against an
+    # actual 11k/s).
+    steps_at_start = trainer.global_step
     per_update = p.num_envs * p.rollout_steps
     n_updates = max(1, args.total_steps // per_update)
     best = -1e9
@@ -108,7 +113,7 @@ def main():
 
         row = {"update": update, "step": trainer.global_step,
                "elapsed_s": round(time.time() - t0, 1),
-               "sps": int(trainer.global_step / max(time.time() - t0, 1e-9)),
+               "sps": int((trainer.global_step - steps_at_start) / max(time.time() - t0, 1e-9)),
                **rstats, **{k: v for k, v in lstats.items() if k != "n_train"}}
 
         # Save every update: a restart then costs one update, not one eval
