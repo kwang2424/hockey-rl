@@ -373,4 +373,12 @@ def test_carrying_the_puck_beats_flinging_it_away():
     assert controlled > loose > 0, (
         f"controlled advance paid {controlled:+.4f}, loose paid {loose:+.4f}"
     )
-    assert controlled > 1.5 * loose
+    # The size of this margin is a deliberate trade-off, not a free parameter:
+    # it *is* the potential a shot gives up, so a wider margin directly raises
+    # the minimum shot success rate worth taking. At loose_puck_factor 0.5 the
+    # margin was 2x and the bar was 30.5%, and the policy stopped shooting
+    # altogether. Keep it clear but modest; test_taking_a_shot_is_not_priced_
+    # out_of_reach pins the other end.
+    assert controlled > 1.2 * loose, (
+        f"margin only {controlled/loose:.2f}x -- controlled carry barely beats a clear"
+    )

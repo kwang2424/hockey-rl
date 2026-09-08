@@ -88,7 +88,7 @@ class Config:
     # Because it is potential-based it cannot create a reward loop -- the
     # optimal policy of the shaped MDP is the optimal policy of the real one.
     shaping_weight: float = 0.35
-    possession_weight: float = 0.20
+    possession_weight: float = 0.08
 
     # How much the puck-position term counts while the puck is LOOSE.
     #
@@ -103,7 +103,7 @@ class Config:
     # rather than antisymmetric, and would silently break the zero-sum
     # property; a shared factor times the antisymmetric position term stays
     # antisymmetric. tests/test_env.py enforces this.
-    loose_puck_factor: float = 0.5
+    loose_puck_factor: float = 0.75
 
     # Per-step reward for holding the puck. THIS ONE IS NOT POTENTIAL-BASED,
     # and that is deliberate.
@@ -121,12 +121,14 @@ class Config:
     # with long possessions), so it is watched rather than assumed away.
     # Still exactly zero-sum: the holder gains it, the other skater loses it.
     #
-    # The viable window is narrow and only exists at gamma 0.998. The rate must
-    # exceed the discount drag while holding (about 0.0012/step) or carrying
-    # still loses money, and stay under goal_reward/max_episode_steps
-    # (0.00167) or hoarding the puck for a whole episode outscores a goal. At
-    # gamma 0.995 the drag was 0.0030 and no value satisfied both.
-    possession_rate: float = 0.0015
+    # The rate must exceed the discount drag while holding, or carrying still
+    # loses money, and stay well under goal_reward/max_episode_steps or
+    # hoarding for a whole episode competes with scoring. At 0.0008 a
+    # full-episode hold is worth 0.48 against a goal's 1.00, so scoring
+    # strictly dominates. The earlier 0.0015 made it 0.90 -- close enough to a
+    # goal that the policy drifted towards keeping the puck and not shooting.
+    # At gamma 0.995 no value satisfied both bounds at all.
+    possession_rate: float = 0.0008
     # Being closer to the puck than your opponent. Written as a *difference*
     # between the two skaters so the potential stays antisymmetric and the
     # reward stays exactly zero-sum. This is the term that gets a fresh policy
@@ -141,7 +143,7 @@ class Config:
     # backwards. Because every term here is potential-based, reweighting
     # cannot change which policy is optimal; it only changes what is
     # learnable early.
-    proximity_weight: float = 1.0
+    proximity_weight: float = 0.6
     # Measure proximity from the stick blade, not the body centre. Possession
     # requires the puck within capture_radius of the BLADE, which sits
     # blade_offset ahead of the skater -- so a body-centre potential rewards

@@ -200,8 +200,23 @@ def test_possession_rate_sits_inside_its_viable_window():
     high and hoarding for a whole episode beats scoring. At gamma 0.995 the
     window was empty -- this pins that it is both non-empty and respected.
     """
+    import numpy as np
     from hockey.config import DEFAULT as C
-    phi_while_holding = 0.6                      # measured, mid-ice with the puck
+    from hockey.env import VecHockeyEnv
+
+    # Measure Phi in a real carrying state rather than hardcoding it, so this
+    # keeps testing the true window when the weights are retuned.
+    env = VecHockeyEnv(num_envs=1, seed=0)
+    env.skater_pos[0] = [[-6.0, 0.0], [-27.0, 12.0]]
+    env.theta[0] = [0.0, np.pi]
+    env.omega[:] = 0.0
+    env.skater_vel[:] = 0.0
+    env.puck_pos[:] = [-6.0 + C.blade_offset, 0.0]
+    env.puck_vel[:] = 0.0
+    env._update_possession()
+    assert env.possessor[0] == 0
+    phi_while_holding = abs(float(env._potential()[0]))
+
     drag = (1 - C.gamma) * phi_while_holding
     hoard_ceiling = C.goal_reward / C.max_episode_steps
     assert drag < hoard_ceiling, (
@@ -210,6 +225,25 @@ def test_possession_rate_sits_inside_its_viable_window():
     assert drag < C.possession_rate < hoard_ceiling, (
         f"possession_rate {C.possession_rate} outside ({drag:.5f}, {hoard_ceiling:.5f})"
     )
+    # Scoring must strictly dominate hoarding, not merely edge it out.
+    assert C.possession_rate * C.max_episode_steps < 0.6 * C.goal_reward, (
+        "a full-episode hold is worth too much next to a goal"
+    )
+
+
+def test_taking_a_shot_is_not_priced_out_of_reach():
+    """The potential given up on release sets a minimum shot success rate.
+
+    At 30.5% the policy learned to keep the puck and stop shooting entirely
+    (shots fell to 1-2 per diagnostic and goals with them), which is the
+    mirror image of the earlier failure where it shot on every step it held
+    the puck. The bar has to sit between those.
+    """
+    from hockey.config import DEFAULT as C
+    offensive = 0.6                              # (d_own - d_opp)/rink_length there
+    cost = C.shaping_weight * offensive * (1 - C.loose_puck_factor) + C.possession_weight
+    breakeven = cost / C.goal_reward
+    assert 0.03 < breakeven < 0.20, f"break-even shot success rate is {breakeven:.1%}"
 
 
 def test_checkpoint_round_trips_full_training_state(tmp_path):
