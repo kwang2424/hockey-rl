@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from rl.ppo import PPOTrainer, PPOConfig
-from rl.nets import RunningNorm
+from rl.nets import RunningNorm, ActorCritic
 from hockey.env import OBS_DIM, ACT_DIM
 
 
@@ -132,3 +132,49 @@ def test_curriculum_starts_are_real_scoring_chances_not_free_goals():
     # Defender is closer to the net than the carrier is, most of the time.
     closer = np.linalg.norm(dpos - net, axis=-1) < np.linalg.norm(cpos - net, axis=-1)
     assert closer.mean() > 0.8, f"defender goal-side only {closer.mean():.2f} of the time"
+
+
+def test_policy_mean_stays_inside_the_action_range():
+    """An unbounded mean can walk outside [-1, 1] and kill exploration.
+
+    Once the mean sits far enough outside the clipped range every sample
+    executes identically, so the environment cannot tell the policy apart from
+    a constant -- and no reward change can pull it back. This is a regression
+    test for the real failure: the shoot mean reached +3.48 (sigma 1.29), so
+    roughly 1 possession in 278 sampled "do not shoot".
+    """
+    from hockey.env import OBS_DIM
+    net = ActorCritic(OBS_DIM, ACT_DIM, bounded_mean=True)
+    # Drive the pre-squash output hard in both directions.
+    final = [m for m in net.actor if isinstance(m, torch.nn.Linear)][-1]
+    with torch.no_grad():
+        final.bias.fill_(50.0)
+    obs = torch.randn(256, OBS_DIM)
+    mean = net.dist(obs).mean
+    assert torch.all(mean.abs() <= 1.0), f"mean escaped to {mean.abs().max():.2f}"
+
+    with torch.no_grad():
+        final.bias.fill_(-50.0)
+    assert torch.all(net.dist(obs).mean.abs() <= 1.0)
+
+
+def test_exploration_noise_has_a_ceiling():
+    """sigma grew 0.607 -> 1.295 over training; the ceiling stops the runaway."""
+    from hockey.env import OBS_DIM
+    net = ActorCritic(OBS_DIM, ACT_DIM, bounded_mean=True, max_log_std=0.0)
+    with torch.no_grad():
+        net.log_std.fill_(5.0)
+    sigma = net.dist(torch.randn(8, OBS_DIM)).scale
+    assert torch.all(sigma <= 1.0 + 1e-6), f"sigma reached {sigma.max():.2f}"
+
+
+def test_a_bounded_mean_keeps_both_sides_of_a_threshold_reachable():
+    """With the mean saturated at its bound, refusing to fire must stay likely."""
+    from hockey.env import OBS_DIM
+    from math import erf, sqrt
+    net = ActorCritic(OBS_DIM, ACT_DIM, init_log_std=-0.5, bounded_mean=True)
+    sigma = float(net.log_std.exp()[2])
+    p_not_fire = 0.5 * (1 - erf((1.0 / sigma) / sqrt(2)))   # worst case, mean = +1
+    assert p_not_fire > 0.02, (
+        f"even at the bound only {p_not_fire:.4f} of samples decline to fire"
+    )

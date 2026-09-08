@@ -45,6 +45,8 @@ class PPOConfig:
 
     hidden: tuple = (128, 128)
     init_log_std: float = -0.5
+    bounded_mean: bool = True    # squash the policy mean into the action range
+    max_log_std: float = 0.0     # ceiling on exploration noise (sigma <= 1.0)
 
     # opponent pool
     pool_prob: float = 0.35      # fraction of envs facing a frozen snapshot
@@ -83,7 +85,8 @@ class PPOTrainer:
 
         self.device = torch.device(self.p.device)
         self.env = VecHockeyEnv(self.p.num_envs, cfg=cfg, seed=self.p.seed)
-        self.net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std).to(self.device)
+        self.net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
+                               self.p.bounded_mean, self.p.max_log_std).to(self.device)
         self.opt = torch.optim.Adam(self.net.parameters(), lr=self.p.lr, eps=1e-5)
         self.norm = RunningNorm(OBS_DIM)
 
@@ -111,7 +114,8 @@ class PPOTrainer:
 
     def _snapshot(self):
         sd = copy.deepcopy({k: v.detach().cpu().clone() for k, v in self.net.state_dict().items()})
-        net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std)
+        net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
+                          self.p.bounded_mean, self.p.max_log_std)
         net.load_state_dict(sd)
         net.eval()
         self.pool.append(sd)
@@ -321,7 +325,10 @@ def load_policy(path, device="cpu"):
     """Rehydrate a saved checkpoint into a drop-in Policy."""
     ck = torch.load(path, map_location=device, weights_only=False)
     hidden = tuple(ck["ppo_config"].get("hidden", (128, 128)))
-    net = ActorCritic(OBS_DIM, ACT_DIM, hidden, ck["ppo_config"].get("init_log_std", -0.5))
+    net = ActorCritic(OBS_DIM, ACT_DIM, hidden,
+                      ck["ppo_config"].get("init_log_std", -0.5),
+                      ck["ppo_config"].get("bounded_mean", False),
+                      ck["ppo_config"].get("max_log_std", 10.0))
     net.load_state_dict(ck["net"])
     net.eval()
     norm = RunningNorm(OBS_DIM)

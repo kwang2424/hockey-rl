@@ -28,15 +28,36 @@ class ActorCritic(nn.Module):
     shared features early on.
     """
 
-    def __init__(self, obs_dim, act_dim, hidden=(128, 128), init_log_std=-0.5):
+    def __init__(self, obs_dim, act_dim, hidden=(128, 128), init_log_std=-0.5,
+                 bounded_mean=True, max_log_std=0.0):
         super().__init__()
         self.actor = mlp(obs_dim, act_dim, hidden, out_std=0.01)
         self.critic = mlp(obs_dim, 1, hidden, out_std=1.0)
         self.log_std = nn.Parameter(torch.full((act_dim,), float(init_log_std)))
+        self.bounded_mean = bounded_mean
+        self.max_log_std = max_log_std
 
     def dist(self, obs):
+        """Gaussian over actions, with the mean squashed into the action range.
+
+        The squash is load-bearing, not cosmetic. The environment clips actions
+        to [-1, 1], so an unbounded mean can walk outside that range and the
+        executed action stops responding to it -- every sample clips to the
+        same value, exploration in that dimension dies, and the policy can no
+        longer discover the alternative even when the reward says it should.
+
+        That is exactly what happened here: the shoot mean reached +3.48 with
+        sigma 1.29, so roughly 1 possession in 278 ever sampled "do not
+        shoot", and possessions last a single step. The policy fired on 100%
+        of the steps it held the puck across three separate 30M-step runs, and
+        fixing the reward could not budge it, because the reward signal had
+        nothing left to act on.
+        """
         mean = self.actor(obs)
-        return torch.distributions.Normal(mean, self.log_std.exp().expand_as(mean))
+        if self.bounded_mean:
+            mean = torch.tanh(mean)
+        log_std = self.log_std.clamp(max=self.max_log_std)
+        return torch.distributions.Normal(mean, log_std.exp().expand_as(mean))
 
     def value(self, obs):
         return self.critic(obs).squeeze(-1)
