@@ -33,10 +33,19 @@ The genuinely hard part is the stick, so v0 doesn't have one yet (see
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q                       # 33 tests, ~40s
+python -m pytest -q                       # 50 tests, ~20s
 python -m hockey.watch --a chase --b chase --out demo.gif
-python train.py --total-steps 20000000 --out runs/v0
+
+# Trained policies are committed in checkpoints/ -- no need to train first.
+python -m hockey.diagnose --a checkpoints/v3-bounded-mean.pt --b chase
+python -m hockey.play     --opponent checkpoints/v3-bounded-mean.pt
+
+python train.py --total-steps 30000000 --out runs/v4
 ```
+
+`runs/` is gitignored and container-local; the three checkpoints the results
+below are measured from are committed under `checkpoints/` so every number here
+is reproducible. See `checkpoints/README.md`.
 
 ## How to test it
 
