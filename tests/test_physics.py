@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from hockey.config import DEFAULT as C
-from hockey.env import VecHockeyEnv
+from hockey.env import VecHockeyEnv, ACT_DIM
 from hockey import rink
 
 BOARD_TOL = 2e-3   # first-order position correction on the curved corners
@@ -160,3 +160,54 @@ def test_body_check_knocks_the_puck_loose():
     env.skater_vel[0, 1] = [-8.0, 0.0]
     env._resolve_puck_bodies()
     assert env.possessor[0] == -1, "a body arriving on the puck should strip it"
+
+
+def test_max_omega_is_actually_reachable():
+    """A cap that can never bind is dead config, not a limit.
+
+    turn_accel / ang_damp is the steady-state turn rate under full command;
+    if that settles below max_omega the clip never fires and the parameter
+    silently does nothing. It previously settled at 2.91 rad/s against a
+    declared 4.5 cap, so skaters pivoted 35% slower than the config said and
+    tuning max_omega had no effect at all.
+    """
+    assert C.turn_accel / C.ang_damp > C.max_omega, (
+        f"steady-state turn rate {C.turn_accel / C.ang_damp:.2f} rad/s never "
+        f"reaches max_omega {C.max_omega:.2f}; the cap is unreachable"
+    )
+
+    env = VecHockeyEnv(num_envs=1, seed=0)
+    env.theta[:] = 0.0
+    env.omega[:] = 0.0
+    env.skater_vel[:] = 0.0
+    env.puck_pos[:] = [0.0, -12.0]
+    act = np.zeros((1, 2, ACT_DIM))
+    act[0, 0] = [0.0, 1.0, -1.0]                 # full turn, no thrust
+    for _ in range(60):
+        env.step(act)
+    assert float(env.omega[0, 0]) == pytest.approx(C.max_omega, rel=1e-6)
+
+
+def test_a_skater_can_pivot_in_a_reasonable_time():
+    """Turning around must be quick enough to recover from overshooting the puck."""
+    env = VecHockeyEnv(num_envs=1, seed=0)
+    env.skater_pos[0] = [[0.0, 0.0], [-25.0, 11.0]]
+    env.theta[0] = [0.0, 0.0]
+    env.omega[:] = 0.0
+    env.skater_vel[:] = 0.0
+    env.puck_pos[:] = [0.0, -12.0]
+    act = np.zeros((1, 2, ACT_DIM))
+    act[0, 0] = [0.0, 1.0, -1.0]
+    # Accumulate the unwrapped heading over the whole trajectory. Unwrapping
+    # just (start, current) can never report more than pi of rotation, so the
+    # threshold would be unreachable.
+    headings = [float(env.theta[0, 0])]
+    for _ in range(120):
+        env.step(act)
+        headings.append(float(env.theta[0, 0]))
+    swept = np.abs(np.unwrap(headings) - headings[0])
+    idx = np.argmax(swept >= np.pi)
+    assert swept.max() >= np.pi, "skater never completed a 180"
+    turned = idx * C.control_dt
+    # Real players pivot in roughly 0.4-0.6s; allow up to 0.9s but no more.
+    assert turned < 0.9, f"180-degree pivot took {turned:.2f}s"

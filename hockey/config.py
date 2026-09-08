@@ -46,9 +46,15 @@ class Config:
     glide_damp: float = 0.35           # 1/s, forward direction (near-free glide)
 
     # ---- turning -------------------------------------------------------
-    turn_accel: float = 16.0           # rad/s^2
+    # These three interact: the steady-state turn rate under full command is
+    # turn_accel / ang_damp, and max_omega only ever binds if that quotient
+    # exceeds it. It previously did not -- turn_accel 16.0 with ang_damp 5.5
+    # settles at 2.91 rad/s, so the declared 4.5 cap was unreachable dead
+    # config and skaters pivoted 35% slower than the config claimed.
+    # tests/test_physics.py now asserts the cap is actually reachable.
+    turn_accel: float = 28.0           # rad/s^2 -> settles above max_omega
     ang_damp: float = 5.5              # 1/s
-    max_omega: float = 4.5             # rad/s
+    max_omega: float = 4.5             # rad/s, ~0.70 s for a 180 pivot
 
     # ---- puck ----------------------------------------------------------
     puck_damp: float = 0.25            # 1/s on ice

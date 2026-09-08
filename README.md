@@ -360,6 +360,25 @@ The means trend the right way and goals/min rose monotonically (0.102 ->
 0.141 -> 0.188), but seed 0 drives almost all of it. **Inconclusive at this
 budget.** This is the third time a clean seed-0 result failed to replicate.
 
+### A dead config parameter
+
+`max_omega` was unreachable. The three turning parameters interact: under full
+command the heading rate settles at `turn_accel / ang_damp`, and `max_omega`
+only ever binds if that quotient exceeds it. It did not -- 16.0 / 5.5 settles
+at 2.91 rad/s against a declared 4.5 cap, so the clip never fired, skaters
+pivoted 35% slower than the config claimed, and tuning `max_omega` did nothing
+at all.
+
+`turn_accel` is now 28.0 so the cap actually binds, and a test asserts it stays
+that way. A 180-degree pivot went from 1.23s to 0.80s.
+
+Worth noting what that did *not* fix: reversing direction at speed got
+*slower* (0.97s to 1.33s at 8 m/s), because there the binding constraint is the
+grip budget, not the turn rate. At 11 m/s the tightest sustainable turn radius
+is 8.6 m -- the heading can now swing faster than the blades can redirect the
+velocity, so the skater slides. That is correct behaviour for a skate, and the
+reason a real player slows down before turning hard.
+
 ### What is still broken
 
 v3 still fails three of five behavioural checks: possession 0.041s (needs
