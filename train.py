@@ -23,6 +23,13 @@ from hockey.rollout import play
 from rl.ppo import PPOTrainer, PPOConfig
 
 
+BASE_FIELDS = ["update", "step", "elapsed_s", "sps", "ep_count", "goals_per_ep",
+               "mean_reward", "pool_frac", "curriculum", "nonfinite_skips",
+               "pg_loss", "v_loss", "entropy", "approx_kl", "grad_norm"]
+EVAL_FIELDS = [f"vs_{opp}_{m}" for opp in ("chase", "random")
+               for m in ("goal_diff_per_min", "goals_for", "goals_against", "possession")]
+
+
 def evaluate(trainer, steps, envs, seed=12345):
     """Objective progress check: play the learner against fixed baselines."""
     pol = trainer.policy()
@@ -136,9 +143,24 @@ def main():
                   f"curr={row['curriculum']:.2f}", flush=True)
 
         if writer is None:
+            # Fieldnames come from the declared schema, never from whichever
+            # row happens to be written first. Update 1 is not an eval update,
+            # so deriving the header from it silently dropped every
+            # vs_chase_*/vs_random_* value for the whole run -- extrasaction
+            #="ignore" discards keys the header does not know about, without
+            # raising. The eval numbers only ever reached stdout, and
+            # plot_progress.py had nothing to plot.
             existing = os.path.exists(csv_path) and start_update > 1
+            if existing:
+                with open(csv_path, newline="") as f:
+                    header = next(csv.reader(f), None)
+                fields = header if header and set(EVAL_FIELDS) <= set(header) else None
+                if fields is None:      # older run with the truncated header
+                    existing = False
+            if not existing:
+                fields = BASE_FIELDS + EVAL_FIELDS
             csv_file = open(csv_path, "a" if existing else "w", newline="")
-            writer = csv.DictWriter(csv_file, fieldnames=list(row.keys()), extrasaction="ignore")
+            writer = csv.DictWriter(csv_file, fieldnames=fields, extrasaction="ignore")
             if not existing:
                 writer.writeheader()
         writer.writerow(row)
