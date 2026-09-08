@@ -260,6 +260,13 @@ class VecHockeyEnv:
 
         r_a = cfg.goal_reward * (scored_a.astype(np.float64) - scored_b.astype(np.float64))
         r_a = r_a + shaping
+
+        # Per-step possession reward -- deliberately NOT part of the potential,
+        # because a potential cannot express "holding is good per unit time".
+        # See Config.possession_rate.
+        if cfg.possession_rate:
+            r_a = r_a + cfg.possession_rate * np.where(
+                self.possessor == 0, 1.0, np.where(self.possessor == 1, -1.0, 0.0))
         reward = np.stack([r_a, -r_a], axis=1)
 
         info = self._info(scored_a, scored_b, goal, truncated)

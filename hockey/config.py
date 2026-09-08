@@ -98,6 +98,23 @@ class Config:
     # property; a shared factor times the antisymmetric position term stays
     # antisymmetric. tests/test_env.py enforces this.
     loose_puck_factor: float = 0.5
+
+    # Per-step reward for holding the puck. THIS ONE IS NOT POTENTIAL-BASED,
+    # and that is deliberate.
+    #
+    # A state potential cannot reward *duration*: it pays the transition into
+    # possession and charges the transition out, so a 25-step possession nets
+    # strictly less than a 1-step one (only the discount drag differs). No
+    # value of possession_weight can make the policy want to carry the puck --
+    # which is why raising it from 0.08 to 0.20 changed nothing.
+    #
+    # The cost of fixing that is the policy-invariance guarantee: unlike every
+    # other term here, this one CAN change which policy is optimal, and its
+    # failure mode is the classic one -- hoard the puck in a corner and never
+    # shoot. hockey.diagnose flags exactly that (fire_while_holding near zero
+    # with long possessions), so it is watched rather than assumed away.
+    # Still exactly zero-sum: the holder gains it, the other skater loses it.
+    possession_rate: float = 0.005
     # Being closer to the puck than your opponent. Written as a *difference*
     # between the two skaters so the potential stays antisymmetric and the
     # reward stays exactly zero-sum. This is the term that gets a fresh policy

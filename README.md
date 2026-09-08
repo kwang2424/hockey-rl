@@ -304,6 +304,53 @@ possessions finally exceeded a single step.
 Neither bug is visible on a return curve. Both are obvious in one
 `hockey.diagnose` call.
 
+### Why possession_weight could never have worked
+
+Potential-based shaping pays `F = gamma*Phi(s') - Phi(s)`, which means it pays
+the *transition into* a state and charges the *transition out* -- it cannot
+express "this is good per unit time". Tracing one possession at
+`possession_weight = 0.20`:
+
+| | reward |
+|---|---|
+| gain the puck | +0.200 |
+| each step held | -0.001 (pure discount drag) |
+| shoot / lose it | -0.200 |
+| **net over 25 steps** | **-0.025** |
+
+A longer possession pays strictly *less* than a short one. No value of
+`possession_weight` can make the policy want to carry the puck, which is why
+raising it 0.08 -> 0.20 changed nothing. Rewarding duration requires a term
+outside the potential (`Config.possession_rate`), and that costs the
+policy-invariance guarantee every other term here keeps.
+
+That term has an unresolved tension worth knowing about:
+
+```
+discount drag while holding        -0.0030 /step
+rate 0.005  ->  net +0.0020/step,  full-episode hoard = 3.00 vs a goal = 1.00
+```
+
+To keep hoarding the puck for a whole episode worth less than one goal needs
+`rate < 0.00167` -- which is *below* the drag, so holding would still lose
+money. There is no value that both beats the drag and prices below a goal.
+The drag itself comes from `(1-gamma)*Phi`, so the real fix is probably to
+shrink `Phi` (the proximity term at weight 1.0 dominates it and has already
+done its job) rather than to keep tuning the rate. Until then the default is
+0.005 and `hockey.diagnose` flags hoarding directly.
+
+Measured effect at 1M steps, three seeds -- mean possession seconds:
+
+| rate | per seed | mean |
+|---|---|---|
+| 0.0 | 0.057, 0.067, 0.044 | 0.056 |
+| 0.005 | 0.113, 0.033, 0.050 | 0.065 |
+| 0.015 | 0.147, 0.049, 0.033 | 0.076 |
+
+The means trend the right way and goals/min rose monotonically (0.102 ->
+0.141 -> 0.188), but seed 0 drives almost all of it. **Inconclusive at this
+budget.** This is the third time a clean seed-0 result failed to replicate.
+
 ### What is still broken
 
 v3 still fails three of five behavioural checks: possession 0.041s (needs

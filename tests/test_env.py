@@ -54,15 +54,18 @@ def test_reward_is_exactly_zero_sum():
         assert np.array_equal(rew[:, 0], -rew[:, 1])
 
 
-def test_reward_is_goal_plus_exact_potential_difference():
-    """The shaping term must be *exactly* gamma*Phi(s') - Phi(s).
+def test_reward_decomposes_into_exactly_three_known_terms():
+    """reward = goal + [gamma*Phi(s') - Phi(s)] + possession_rate.
 
-    This is what makes the shaping potential-based, and therefore what stops
-    the classic exploit of rocking the puck back and forth to farm progress
-    bonuses. If this test fails, the reward has a cycle in it.
+    The middle bracket must be *exactly* a potential difference: that is what
+    makes it policy-invariant and unfarmable, and a mismatch here means the
+    shaping has grown a cycle. The third term is deliberately outside the
+    potential (a potential cannot reward duration -- see
+    Config.possession_rate), so it is pinned separately rather than folded in.
     """
     env = VecHockeyEnv(num_envs=64, seed=3)
     rng = np.random.default_rng(4)
+    saw_possession = False
     for _ in range(150):
         phi_before = env._potential().copy()
         _, rew, goal, _, info = env.step(rng.uniform(-1, 1, (64, 2, ACT_DIM)))
@@ -71,9 +74,67 @@ def test_reward_is_goal_plus_exact_potential_difference():
         # so reconstruct that case from the goal mask rather than the new state.
         ended = info["episode_end"]
         phi_after = np.where(goal, 0.0, env._potential())
-        expected = goal_term + C.gamma * phi_after - phi_before
+        # `possessor` is post-step, and reset would clobber it, so the exact
+        # check is restricted to envs that did not end this step.
+        rate = C.possession_rate * np.where(env.possessor == 0, 1.0,
+                                            np.where(env.possessor == 1, -1.0, 0.0))
+        saw_possession |= bool((env.possessor[~ended] >= 0).any())
+        expected = goal_term + C.gamma * phi_after - phi_before + rate
         assert np.allclose(rew[~ended, 0], expected[~ended], atol=1e-12)
-        assert np.allclose(rew[goal, 0], (goal_term - phi_before)[goal], atol=1e-12)
+    assert saw_possession, "test never exercised the possession-rate branch"
+
+
+def test_possession_rate_is_zero_sum_and_pays_per_step():
+    """Unlike the potential terms, this one must reward *duration*."""
+    env = VecHockeyEnv(num_envs=1, seed=13)
+    env.skater_pos[0] = [[0.0, 0.0], [-20.0, 9.0]]
+    env.skater_vel[:] = 0.0
+    env.theta[0] = [0.0, 0.0]
+    env.omega[:] = 0.0
+    env.puck_pos[:] = [C.blade_offset, 0.0]
+    env.puck_vel[:] = 0.0
+    env._update_possession()
+    assert env.possessor[0] == 0
+
+    total = 0.0
+    hold_steps = 0
+    for _ in range(20):
+        act = np.zeros((1, 2, ACT_DIM))
+        act[0, 0] = [0.0, 0.0, -1.0]          # hold: do not shoot
+        _, rew, _, _, _ = env.step(act)
+        assert rew[0, 0] == pytest.approx(-rew[0, 1])
+        if env.possessor[0] == 0:
+            hold_steps += 1
+            total += float(rew[0, 0])
+    assert hold_steps > 10, "skater failed to keep the puck on its blade"
+
+    # Differential check: rerun the identical scenario with the rate switched
+    # off. The gap must be exactly rate * held steps, which isolates this term
+    # from the discount drag the potential charges for sitting in a good state.
+    off = Config(possession_rate=0.0)
+    env2 = VecHockeyEnv(num_envs=1, cfg=off, seed=13)
+    env2.skater_pos[0] = [[0.0, 0.0], [-20.0, 9.0]]
+    env2.skater_vel[:] = 0.0
+    env2.theta[0] = [0.0, 0.0]
+    env2.omega[:] = 0.0
+    env2.puck_pos[:] = [off.blade_offset, 0.0]
+    env2.puck_vel[:] = 0.0
+    env2._update_possession()
+    total_off, hold_off = 0.0, 0
+    for _ in range(20):
+        act = np.zeros((1, 2, ACT_DIM))
+        act[0, 0] = [0.0, 0.0, -1.0]
+        _, rew, _, _, _ = env2.step(act)
+        if env2.possessor[0] == 0:
+            hold_off += 1
+            total_off += float(rew[0, 0])
+    assert hold_off == hold_steps, "the two runs must be physically identical"
+    assert total - total_off == pytest.approx(C.possession_rate * hold_steps, abs=1e-9)
+
+    # And the point of the whole term: with it, holding is net positive;
+    # without it, a potential alone makes sitting on the puck cost you.
+    assert total > 0.0
+    assert total_off < 0.0
 
 
 def test_shaping_cannot_be_farmed_by_a_closed_loop():
