@@ -82,7 +82,22 @@ class Config:
     # Because it is potential-based it cannot create a reward loop -- the
     # optimal policy of the shaped MDP is the optimal policy of the real one.
     shaping_weight: float = 0.35
-    possession_weight: float = 0.08
+    possession_weight: float = 0.20
+
+    # How much the puck-position term counts while the puck is LOOSE.
+    #
+    # Without this the position term pays for puck displacement regardless of
+    # who ends up with it, which prices a 30 m/s clearance above an 11 m/s
+    # controlled carry -- and the policy duly learned to fire on 99% of the
+    # steps it held the puck, with 0% of shots on target. Discounting a loose
+    # puck means advancing it *under control* is what pays.
+    #
+    # The factor is deliberately the same for both teams. A term that scaled
+    # with *which* team holds the puck would be symmetric under the team swap
+    # rather than antisymmetric, and would silently break the zero-sum
+    # property; a shared factor times the antisymmetric position term stays
+    # antisymmetric. tests/test_env.py enforces this.
+    loose_puck_factor: float = 0.5
     # Being closer to the puck than your opponent. Written as a *difference*
     # between the two skaters so the potential stays antisymmetric and the
     # reward stays exactly zero-sum. This is the term that gets a fresh policy

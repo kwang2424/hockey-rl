@@ -256,3 +256,60 @@ def test_possession_is_exclusive():
         assert np.allclose(poss.sum(-1), 1.0), "possession one-hot must sum to 1"
         both = (poss[:, 0, 0] > 0.5) & (poss[:, 1, 0] > 0.5)
         assert not both.any(), "two players cannot both own the puck"
+
+
+def test_loose_puck_gate_preserves_zero_sum_and_team_symmetry():
+    """The control gate must be team-agnostic.
+
+    A gate that scaled with *which* team holds the puck would be symmetric
+    under the 180-degree team swap, and multiplying it into the antisymmetric
+    position term would make the product symmetric -- quietly destroying the
+    zero-sum property the whole self-play setup depends on. This pins that the
+    gate is shared.
+    """
+    env = VecHockeyEnv(num_envs=256, seed=21)
+    rng = np.random.default_rng(5)
+    saw_loose = saw_held = False
+    for _ in range(400):
+        _, rew, _, _, _ = env.step(rng.uniform(-1, 1, (256, 2, ACT_DIM)))
+        assert np.array_equal(rew[:, 0], -rew[:, 1])
+        saw_loose |= bool((env.possessor < 0).any())
+        saw_held |= bool((env.possessor >= 0).any())
+    assert saw_loose and saw_held, "test never exercised both gate branches"
+
+    # And the mirrored world must produce exactly mirrored potentials.
+    m = VecHockeyEnv(num_envs=256, seed=21)
+    m.skater_pos = -env.skater_pos[:, ::-1].copy()
+    m.skater_vel = -env.skater_vel[:, ::-1].copy()
+    m.theta = (env.theta[:, ::-1] + np.pi).copy()
+    m.omega = env.omega[:, ::-1].copy()
+    m.puck_pos = -env.puck_pos.copy()
+    m.puck_vel = -env.puck_vel.copy()
+    m.possessor = np.where(env.possessor < 0, -1, 1 - env.possessor)
+    assert np.allclose(env._potential(), -m._potential(), atol=1e-12)
+
+
+def test_carrying_the_puck_beats_flinging_it_away():
+    """Advancing the puck under control must out-earn an uncontrolled clear.
+
+    This is the property the previous reward got backwards, and it is what
+    made the policy shoot on 99% of the steps it held the puck.
+    """
+    def advance(possessed):
+        env = VecHockeyEnv(num_envs=1, seed=31)
+        env.skater_pos[0] = [[-4.0, 0.0], [-20.0, 8.0]]
+        env.skater_vel[:] = 0.0
+        env.theta[0] = [0.0, 0.0]
+        env.omega[:] = 0.0
+        env.puck_pos[:] = [0.0, 0.0]
+        env.possessor[:] = 0 if possessed else -1
+        before = float(env._potential()[0])
+        env.puck_pos[:] = [10.0, 0.0]          # same 10 m of progress either way
+        return float(env._potential()[0]) - before
+
+    controlled = advance(True)
+    loose = advance(False)
+    assert controlled > loose > 0, (
+        f"controlled advance paid {controlled:+.4f}, loose paid {loose:+.4f}"
+    )
+    assert controlled > 1.5 * loose

@@ -475,7 +475,12 @@ class VecHockeyEnv:
         cfg = self.cfg
         d_opp = np.linalg.norm(self.puck_pos - self._goal_centers[0], axis=-1)
         d_own = np.linalg.norm(self.puck_pos - self._goal_centers[1], axis=-1)
-        phi = cfg.shaping_weight * (d_own - d_opp) / cfg.rink_length
+        # Puck position counts for less while the puck is loose, so advancing
+        # it under control beats flinging it downrange. The gate depends only
+        # on *whether* someone has the puck, not who -- see
+        # Config.loose_puck_factor.
+        gate = np.where(self.possessor >= 0, 1.0, cfg.loose_puck_factor)
+        phi = cfg.shaping_weight * gate * (d_own - d_opp) / cfg.rink_length
 
         poss = np.where(self.possessor == 0, 1.0, np.where(self.possessor == 1, -1.0, 0.0))
         phi = phi + cfg.possession_weight * poss
