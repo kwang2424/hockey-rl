@@ -55,6 +55,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=str, default="runs/v0")
     ap.add_argument("--device", type=str, default="cpu")
+    ap.add_argument("--resume", action="store_true",
+                    help="continue from <out>/latest.pt if it exists")
     args = ap.parse_args()
 
     p = PPOConfig(
@@ -69,6 +71,16 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     trainer = PPOTrainer(p, DEFAULT)
 
+    # Resume support exists because this environment restarts containers
+    # roughly hourly, which killed a 30M-step run at 3.7M with no error. A run
+    # long enough to be interesting is longer than the machine stays up.
+    start_update = 1
+    resume_path = os.path.join(args.out, "latest.pt")
+    if args.resume and os.path.exists(resume_path):
+        start_update = trainer.load_for_resume(resume_path)
+        print(f"[train] resumed from {resume_path} at update {start_update-1}, "
+              f"step {trainer.global_step:,}", flush=True)
+
     with open(os.path.join(args.out, "config.json"), "w") as f:
         json.dump({"ppo": p.__dict__, "env": DEFAULT.to_dict()}, f, indent=2, default=str)
 
@@ -79,7 +91,7 @@ def main():
     best = -1e9
 
     print(f"[train] {n_updates} updates x {per_update:,} steps = {n_updates*per_update:,} total")
-    for update in range(1, n_updates + 1):
+    for update in range(start_update, n_updates + 1):
         trainer.update = update
         if p.anneal_lr:
             frac = 1.0 - (update - 1) / n_updates
@@ -99,6 +111,10 @@ def main():
                "sps": int(trainer.global_step / max(time.time() - t0, 1e-9)),
                **rstats, **{k: v for k, v in lstats.items() if k != "n_train"}}
 
+        # Save every update: a restart then costs one update, not one eval
+        # period. Writing 177 KB at ~11k steps/sec is not a measurable cost.
+        trainer.save(resume_path)
+
         if update % p.eval_every == 0 or update == n_updates:
             row.update(evaluate(trainer, p.eval_steps, p.eval_envs))
             score = row["vs_chase_goal_diff_per_min"]
@@ -115,9 +131,11 @@ def main():
                   f"curr={row['curriculum']:.2f}", flush=True)
 
         if writer is None:
-            csv_file = open(csv_path, "w", newline="")
+            existing = os.path.exists(csv_path) and start_update > 1
+            csv_file = open(csv_path, "a" if existing else "w", newline="")
             writer = csv.DictWriter(csv_file, fieldnames=list(row.keys()), extrasaction="ignore")
-            writer.writeheader()
+            if not existing:
+                writer.writeheader()
         writer.writerow(row)
         csv_file.flush()
 

@@ -309,6 +309,13 @@ class PPOTrainer:
 
     # ------------------------------------------------------------------
     def save(self, path):
+        """Write a checkpoint that is sufficient to *resume*, not just to play.
+
+        The optimizer state and the opponent pool matter: Adam's moments take
+        a while to rebuild, and dropping the pool would restart self-play
+        against a fresh policy only, which is the strategy-cycling failure the
+        pool exists to prevent.
+        """
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         torch.save({
             "net": self.net.state_dict(),
@@ -317,8 +324,31 @@ class PPOTrainer:
             "env_config": self.cfg.to_dict(),
             "global_step": self.global_step,
             "update": self.update,
+            "optimizer": self.opt.state_dict(),
+            "pool": self.pool,
+            "rng": self.rng.bit_generator.state,
         }, path)
         return path
+
+    def load_for_resume(self, path):
+        """Restore full training state from a checkpoint. Returns next update."""
+        ck = torch.load(path, map_location=self.device, weights_only=False)
+        self.net.load_state_dict(ck["net"])
+        self.norm.load_state_dict(ck["norm"])
+        self.global_step = int(ck.get("global_step", 0))
+        self.update = int(ck.get("update", 0))
+        if "optimizer" in ck:
+            self.opt.load_state_dict(ck["optimizer"])
+        if "rng" in ck:
+            self.rng.bit_generator.state = ck["rng"]
+        for sd in ck.get("pool", []):
+            net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
+                              self.p.bounded_mean, self.p.max_log_std)
+            net.load_state_dict(sd)
+            net.eval()
+            self.pool.append(sd)
+            self.pool_nets.append(net)
+        return self.update + 1
 
 
 def load_policy(path, device="cpu"):

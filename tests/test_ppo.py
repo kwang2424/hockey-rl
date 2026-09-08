@@ -210,3 +210,34 @@ def test_possession_rate_sits_inside_its_viable_window():
     assert drag < C.possession_rate < hoard_ceiling, (
         f"possession_rate {C.possession_rate} outside ({drag:.5f}, {hoard_ceiling:.5f})"
     )
+
+
+def test_checkpoint_round_trips_full_training_state(tmp_path):
+    """A checkpoint must be enough to *resume*, not merely to play.
+
+    This environment restarts containers roughly hourly, which killed a 30M
+    step run at 3.7M with no error at all. Without optimizer state and the
+    opponent pool, resuming silently restarts Adam's moments and throws away
+    the frozen opponents, so a resumed run is not the run it claims to
+    continue.
+    """
+    t = PPOTrainer(PPOConfig(num_envs=8, rollout_steps=8, pool_size=3, seed=0))
+    for _ in range(2):
+        b, _ = t.collect(); t.learn_on(b)
+    t._snapshot(); t._snapshot()
+    t.update = 7
+    path = str(tmp_path / "latest.pt")
+    t.save(path)
+
+    fresh = PPOTrainer(PPOConfig(num_envs=8, rollout_steps=8, pool_size=3, seed=0))
+    next_update = fresh.load_for_resume(path)
+
+    assert next_update == 8
+    assert fresh.global_step == t.global_step
+    assert len(fresh.pool_nets) == len(t.pool_nets) == 2, "opponent pool must survive"
+    for a, b_ in zip(t.net.parameters(), fresh.net.parameters()):
+        assert torch.allclose(a, b_)
+    assert np.allclose(fresh.norm.mean, t.norm.mean)
+    # Adam moments, not just the weights.
+    assert fresh.opt.state_dict()["state"].keys() == t.opt.state_dict()["state"].keys()
+    assert len(fresh.opt.state_dict()["state"]) > 0, "optimizer state was empty"
