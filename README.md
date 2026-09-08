@@ -261,6 +261,107 @@ any inaccuracy is something the agents will find and live inside, which is why
 
 ## What actually happens when you train it
 
+Honest status after four 30M-step runs: **two real bugs found and fixed, the
+policy is measurably improving, and it is still nowhere near competent.**
+
+| run | change | best vs ChaseBot | head-to-head |
+|---|---|---|---|
+| v0 | baseline | -7.73 /min | — |
+| v1 | puck-on-stick curriculum | -9.19 /min | loses 5-47 to v0 |
+| v2 | control-gated reward | -6.66 /min | — |
+| v3 | + bounded policy mean | -6.98 /min | **beats v0 67-39**; ties v2 |
+
+`hockey.evaluate` swaps ends and reports a CI, so "beats v0" means the interval
+excludes 0.5 and "ties v2" means it does not (65-81, too close to call).
+
+### The two bugs, and why behaviour beat curves at finding them
+
+**Displacement was priced above control.** One second of shooting moved the
+puck 30m (+0.1750 of shaping); one second of carrying moved it 11m (+0.0642)
+plus the possession term. Firing on contact beat carrying by +0.031/s, so the
+policy fired on 99% of the steps it held the puck, with 0 of 103 shots on
+target. Fixed by discounting the position term while the puck is loose.
+
+**The policy mean escaped the action range.** The Gaussian mean was an
+unbounded `Linear` while the env clips actions to [-1, 1]. On the shoot
+dimension it walked to +3.50 (and was still climbing -- v2 reached +4.42):
+
+| checkpoint | shoot mean while holding | sigma |
+|---|---|---|
+| v0 | +3.496 | 1.295 |
+| v2 | +4.416 | 1.129 |
+| v3 (tanh-bounded) | **+0.990** | 1.000 |
+
+At +3.5 with sigma 1.29, roughly 1 possession in 278 ever sampled "do not
+shoot" -- and possessions lasted one step. Every sample executed identically,
+so the environment could not distinguish the policy from a constant and
+nothing pulled the mean back. **This is why fixing the reward changed nothing:
+the reward was saying the right thing to a dimension that could no longer hear
+it.** Squashing the mean through tanh took `fire_while_holding` off 1.0 for the
+first time across every run and sweep in the project (1.0 -> 0.806), and
+possessions finally exceeded a single step.
+
+Neither bug is visible on a return curve. Both are obvious in one
+`hockey.diagnose` call.
+
+### What is still broken
+
+v3 still fails three of five behavioural checks: possession 0.041s (needs
+>0.25s), 3.4% of shots on target, and a blade-vs-body gap of 0.05m, meaning it
+closes on the puck without turning to face it. Its shoot mean sits pinned *at*
+the tanh bound (+0.990), so it still wants to fire as hard as it is allowed --
+the runaway is contained, not the preference. ChaseBot, for comparison, holds
+the puck 0.78s and puts 80% of shots on target.
+
+### Two things that cost real time
+
+- **Single-seed results at 1M steps are noise.** A reward change looked like a
+  3.3x goal-rate win on seed 0; three seeds erased it entirely. Budget three
+  or more seeds, which triples the cost of the fast loop.
+- **Short runs cannot test slow bugs.** The mean-saturation pathology takes
+  tens of millions of steps to develop; at 1M the bounded and unbounded runs
+  are indistinguishable (fire rate 0.59 vs 0.67). Match the experiment horizon
+  to the timescale of what you are testing, or you will conclude nothing
+  loudly.
+
+## Roadmap
+
+v0 is deliberately the smallest thing that proves the loop end to end.
+
+- **v1 (in progress) — the puck-on-stick curriculum.** A fraction of resets
+  start with the puck already on a skater's blade, facing the net, with the
+  defender goal-side; the rate anneals from 0.75 to 0.05 over training.
+  Scoring is otherwise gated behind winning the puck, so a fresh policy sees
+  almost no goals and cannot attribute one to anything it did. The curriculum
+  applies to the *training* env only — `Config.puck_on_stick_prob` defaults
+  to 0.0 so no curriculum-inflated number can leak into a reported score, and
+  a test enforces that.
+- **v1 — the stick.** A rigid segment instead of a fixed blade point. The real
+  design crux is possession: a magnetic capture radius (what v0 does, and what
+  is learnable) versus pure collision physics where carrying means repeated
+  taps (much more interesting emergent behaviour, much harder to learn).
+- **v2 — a goalie.** It is a genuinely different problem: it sees far fewer
+  learning signals than a skater and will lag badly if trained as the same
+  policy. Hand-code it first, then train it separately.
+- **v3 — 2v2 / 3v3**, with a proper opponent league and a team-spirit parameter
+  blending individual and team reward.
+- **v4 — rules.** Offside and icing last, on purpose: offside is non-Markovian
+  (it depends on the order in which players entered the zone), so it needs
+  state the observation doesn't currently carry.
+
+## A calibration note
+
+The famous emergent-behaviour results (hide-and-seek box-surfing) came from
+enormous compute. At this scale, expect something more modest.
+
+But note which half is hard: **reward hacking is not the difficult part, it's
+the default.** You get it for free in the first run. Competent play is the hard
+part. And whatever emerges is emergent behaviour *of this sim*, not of hockey —
+any inaccuracy is something the agents will find and live inside, which is why
+`tests/test_physics.py` is as long as it is.
+
+## What actually happens when you train it
+
 Honest status: **v0 learns, measurably, but is not yet competitive with
 `ChaseBot`.** On 4 CPU cores it needs more compute than a single sitting.
 
