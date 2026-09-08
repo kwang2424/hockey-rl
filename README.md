@@ -360,6 +360,34 @@ The means trend the right way and goals/min rose monotonically (0.102 ->
 0.141 -> 0.188), but seed 0 drives almost all of it. **Inconclusive at this
 budget.** This is the third time a clean seed-0 result failed to replicate.
 
+### Turning: a hard turn was a brake
+
+Rendering scripted manoeuvres (`python -m hockey.drills --gif out.gif`) showed
+turns at speed collapsing into tiny stalling curls rather than carving arcs.
+Tracing the velocity through one:
+
+| step | speed | forward | lateral |
+|---|---|---|---|
+| before the turn | 8.18 | 8.18 | 0.00 |
+| +0.3s | 8.60 | 7.10 | 4.86 |
+| +0.5s | 7.48 | 3.52 | 6.60 |
+| +0.9s | 2.96 | **-1.82** | 2.33 |
+
+The heading was free to spin at 4.5 rad/s while the grip budget supports only
+`grip_accel_max / v` = 1.27 rad/s at 11 m/s. Heading that outruns the velocity
+converts forward speed into *lateral* speed, and lateral speed is exactly what
+the blade destroys -- so hard turns braked, and forward velocity went negative.
+
+The turn rate is now capped at `min(max_omega, grip_accel_max / speed)`: you
+cannot turn harder than your edges can hold. The same manoeuvre now keeps
+speed (8.18 -> 10.98 m/s through the turn, lateral held at 0.70) and traces a
+5.7 m arc. Pivoting on the spot is unaffected, since the cap relaxes to
+`max_omega` below 3.1 m/s.
+
+This is the bug a return curve could never have shown, and neither could the
+numeric drill output -- `hard_left_at_speed` "passed" its heading check while
+braking to a stop. It took looking at the path.
+
 ### A dead config parameter
 
 `max_omega` was unreachable. The three turning parameters interact: under full

@@ -86,10 +86,17 @@ class Renderer:
         return img
 
     # -- frames --------------------------------------------------------
-    def frame(self, snap, env_idx=0, score=None, label=None):
+    def frame(self, snap, env_idx=0, score=None, label=None, trails=None):
+        """Draw one frame. ``trails`` is an optional list of (points, colour)
+        paths in world coordinates, drawn under the skaters -- useful for
+        seeing the shape of a turn rather than guessing at it."""
         cfg = self.cfg
         img = self._bg.copy()
         d = ImageDraw.Draw(img)
+
+        for pts, colour in (trails or []):
+            if len(pts) > 1:
+                d.line([tuple(self.px(p)) for p in pts], fill=colour, width=2)
 
         pos = snap["skater_pos"][env_idx]
         th = snap["theta"][env_idx]

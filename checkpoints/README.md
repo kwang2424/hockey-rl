@@ -54,3 +54,15 @@ print(ck["global_step"], ck["ppo_config"]["bounded_mean"])
 defaults them to the pre-fix behaviour when absent, so v0 and v2 rehydrate
 exactly as they trained rather than being silently reinterpreted under the new
 network semantics.
+
+## A note on physics drift
+
+These were trained before two turning fixes: `max_omega` was unreachable dead
+config, and the turn rate was not capped by the grip budget, so a hard turn
+acted as a brake (8.2 m/s down to 1.4 m/s in a second) instead of a carve.
+They therefore learned to drive a slightly different vehicle than the one in
+`main` now.
+
+They remain valid as evidence for the mean-saturation finding, which is a
+property of the network rather than the physics, and that is what they are kept
+for. Do not read their *play* as representative of the current sim.

@@ -377,7 +377,19 @@ class VecHockeyEnv:
         self.skater_pos += self.skater_vel * dt
 
         self.omega += (cfg.turn_accel * turn_cmd - cfg.ang_damp * self.omega) * dt
-        np.clip(self.omega, -cfg.max_omega, cfg.max_omega, out=self.omega)
+        # Cap the turn rate by what the edges can actually hold at this speed.
+        # Turning needs centripetal acceleration v*omega, and the blade can
+        # only supply grip_accel_max of it. Without this cap the heading
+        # outruns the velocity, the forward speed becomes *lateral* speed
+        # relative to the new heading, and lateral speed is precisely what the
+        # blade destroys -- so a hard turn acted as a brake (8.2 m/s down to
+        # 1.4 m/s in one second, forward velocity going negative) instead of a
+        # carve. Below grip_accel_max/max_omega the cap relaxes to max_omega,
+        # so pivoting on the spot stays fast.
+        speed = np.linalg.norm(self.skater_vel, axis=-1)
+        omega_cap = np.minimum(cfg.max_omega,
+                               cfg.grip_accel_max / np.maximum(speed, EPS))
+        self.omega = np.clip(self.omega, -omega_cap, omega_cap)
         self.theta = np.mod(self.theta + self.omega * dt + np.pi, 2 * np.pi) - np.pi
 
     def blade_points(self):
