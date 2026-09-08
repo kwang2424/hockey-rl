@@ -178,3 +178,35 @@ def test_a_bounded_mean_keeps_both_sides_of_a_threshold_reachable():
     assert p_not_fire > 0.02, (
         f"even at the bound only {p_not_fire:.4f} of samples decline to fire"
     )
+
+
+def test_shaping_and_gae_use_the_same_gamma():
+    """A silent divergence here breaks policy invariance.
+
+    The environment discounts the potential with Config.gamma and GAE
+    discounts returns with PPOConfig.gamma. Ng/Harada/Russell requires the
+    same gamma in both; if they drift apart the shaping is no longer
+    potential-based and can change which policy is optimal, with nothing
+    visibly failing.
+    """
+    from hockey.config import DEFAULT
+    assert PPOConfig().gamma == pytest.approx(DEFAULT.gamma)
+
+
+def test_possession_rate_sits_inside_its_viable_window():
+    """The rate must beat the drag but not outscore a goal.
+
+    Too low and carrying the puck still loses money to the discount drag; too
+    high and hoarding for a whole episode beats scoring. At gamma 0.995 the
+    window was empty -- this pins that it is both non-empty and respected.
+    """
+    from hockey.config import DEFAULT as C
+    phi_while_holding = 0.6                      # measured, mid-ice with the puck
+    drag = (1 - C.gamma) * phi_while_holding
+    hoard_ceiling = C.goal_reward / C.max_episode_steps
+    assert drag < hoard_ceiling, (
+        f"no viable rate exists: drag {drag:.5f} >= hoard ceiling {hoard_ceiling:.5f}"
+    )
+    assert drag < C.possession_rate < hoard_ceiling, (
+        f"possession_rate {C.possession_rate} outside ({drag:.5f}, {hoard_ceiling:.5f})"
+    )

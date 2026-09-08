@@ -33,7 +33,7 @@ class PPOConfig:
 
     lr: float = 3e-4
     anneal_lr: bool = True
-    gamma: float = 0.995
+    gamma: float = 0.998   # must match Config.gamma; a test enforces it
     gae_lambda: float = 0.95
     clip_coef: float = 0.2
     entropy_coef: float = 0.004

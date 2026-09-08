@@ -120,7 +120,13 @@ class Config:
     # shoot. hockey.diagnose flags exactly that (fire_while_holding near zero
     # with long possessions), so it is watched rather than assumed away.
     # Still exactly zero-sum: the holder gains it, the other skater loses it.
-    possession_rate: float = 0.005
+    #
+    # The viable window is narrow and only exists at gamma 0.998. The rate must
+    # exceed the discount drag while holding (about 0.0012/step) or carrying
+    # still loses money, and stay under goal_reward/max_episode_steps
+    # (0.00167) or hoarding the puck for a whole episode outscores a goal. At
+    # gamma 0.995 the drag was 0.0030 and no value satisfied both.
+    possession_rate: float = 0.0015
     # Being closer to the puck than your opponent. Written as a *difference*
     # between the two skaters so the potential stays antisymmetric and the
     # reward stays exactly zero-sum. This is the term that gets a fresh policy
@@ -142,7 +148,18 @@ class Config:
     # closing on the puck without ever facing it, and the two objectives come
     # apart. Set False only to reproduce the old behaviour.
     proximity_from_blade: bool = True
-    gamma: float = 0.995
+    # Must match PPOConfig.gamma -- the shaping uses this one and GAE uses
+    # that one, and if they diverge the shaping stops being policy-invariant.
+    # tests/test_ppo.py asserts they agree.
+    #
+    # 0.995 was too small on two counts. Its 200-step horizon covered only a
+    # third of a 600-step episode; and the shaping's discount drag,
+    # -(1-gamma)*Phi, grew with Phi, so carrying the puck toward the net went
+    # net-negative around centre ice -- the reward paid to carry the puck out
+    # of your own end and then charged you for carrying it at the goal.
+    # 0.998 gives a 500-step horizon and leaves carrying profitable
+    # everywhere on the ice.
+    gamma: float = 0.998
 
     # ---- reset ---------------------------------------------------------
     faceoff_jitter_pos: float = 3.0

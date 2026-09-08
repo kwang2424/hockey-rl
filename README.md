@@ -313,6 +313,42 @@ possessions finally exceeded a single step.
 Neither bug is visible on a return curve. Both are obvious in one
 `hockey.diagnose` call.
 
+### Discount horizon
+
+`gamma` is now 0.998, matched in both `Config` (which discounts the potential)
+and `PPOConfig` (which discounts returns). A test asserts they agree, because a
+silent divergence there stops the shaping being potential-based with nothing
+visibly failing.
+
+0.995 gave a 200-step horizon against a 600-step episode -- only a third of the
+game. It also made the shaping's discount drag, `-(1-gamma)*Phi`, large enough
+to erode the reward for carrying as the puck advanced, since `Phi` grows toward
+the net. Measured per-step reward for carrying, steady state:
+
+| | own end | offensive zone | decay |
+|---|---|---|---|
+| gamma 0.995 | +0.00733 | +0.00371 | -49% |
+| gamma 0.998 | +0.00833 | +0.00763 | -8% |
+
+Carrying was profitable either way -- an earlier claim here that it went
+*negative* near the net was wrong, an artifact of two bad measurement setups
+(the opponent parked in the skating path, and a start with zero blade lag that
+made a one-time settling transient look like a steady-state cost). What 0.998
+actually buys is a roughly uniform incentive along the length of the ice
+instead of one that halves on the way to the goal.
+
+It also opens the window `possession_rate` needs. That rate must exceed the
+drag while holding or carrying still loses to it, and stay under
+`goal_reward / max_episode_steps` or hoarding a whole episode outscores a goal:
+
+| | drag while holding | hoard ceiling | viable window |
+|---|---|---|---|
+| gamma 0.995 | 0.0030 | 0.00167 | **empty** |
+| gamma 0.998 | 0.0012 | 0.00167 | 0.0012 - 0.00167 |
+
+`possession_rate` is 0.0015, inside it, and a test pins that the window is
+non-empty and respected.
+
 ### Why possession_weight could never have worked
 
 Potential-based shaping pays `F = gamma*Phi(s') - Phi(s)`, which means it pays
