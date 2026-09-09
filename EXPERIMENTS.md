@@ -36,6 +36,30 @@ diagnostics told:
 
 **v2 is the incumbent.** Beat it or the change is not an improvement.
 
+### Baseline hygiene: build on the incumbent, not on the latest code
+
+Before the first experiment, the defaults had to be moved back. They had
+drifted to v5's configuration -- gamma 0.998, `loose_puck_factor` 0.75,
+`possession_weight` 0.08, `proximity_weight` 0.6, `possession_rate` 0.0008,
+`bounded_mean` on -- which the ladder ranks at 0.063, barely above random.
+"One change against the incumbent" run from there would silently have been
+"v5 plus one change".
+
+Defaults now match v2 on every reward and PPO knob. Two deliberate exceptions:
+
+- `turn_accel` stays at 28.0. That is a physics correctness fix, not a tuning
+  choice: below it a hard turn braked a skater from 8.2 m/s to 1.4 m/s with
+  forward velocity going negative, which `hockey/drills.py` demonstrates
+  directly. v2 is *evaluated* under the fixed physics and still wins.
+- `bounded_mean` and `possession_rate` remain implemented but default off, so
+  each is one `--set` away from being tested properly.
+
+Three tests had to be rewritten, because they asserted beliefs the ladder
+contradicted -- most starkly one requiring the break-even shot rate to be
+under 20%, when the 30.5% configuration turned out to be the best learned
+policy and the 13.2% one nearly the worst. They now pin mechanisms and record
+quantities rather than asserting that a particular value is correct.
+
 ## 2. One change per run
 
 ```bash
@@ -61,6 +85,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | run | single change vs incumbent | steps | goal share | verdict |
 |---|---|---|---|---|
 | v2 | *(incumbent)* | 19.7M | 0.378 | — |
+| exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | *running* | — |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.

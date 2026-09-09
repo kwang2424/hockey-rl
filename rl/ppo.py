@@ -33,7 +33,7 @@ class PPOConfig:
 
     lr: float = 3e-4
     anneal_lr: bool = True
-    gamma: float = 0.998   # must match Config.gamma; a test enforces it
+    gamma: float = 0.995   # must match Config.gamma; a test enforces it
     gae_lambda: float = 0.95
     clip_coef: float = 0.2
     entropy_coef: float = 0.004
@@ -45,8 +45,14 @@ class PPOConfig:
 
     hidden: tuple = (128, 128)
     init_log_std: float = -0.5
-    bounded_mean: bool = True    # squash the policy mean into the action range
-    max_log_std: float = 0.0     # ceiling on exploration noise (sigma <= 1.0)
+    # Both default OFF, matching the incumbent v2. Bounding the mean fixes a
+    # real, independently verified bug -- the actor's shoot output ran to
+    # +3.50 against an action range of [-1, 1] -- but v3 is v2 plus this
+    # change, and the ladder puts v3 at 0.256 against v2's 0.378. A correct
+    # fix that measurably lost. Turn it on with --set bounded_mean=1 and
+    # re-measure rather than assuming.
+    bounded_mean: bool = False
+    max_log_std: float = 10.0    # effectively no ceiling
 
     # opponent pool
     pool_prob: float = 0.35      # fraction of envs facing a frozen snapshot

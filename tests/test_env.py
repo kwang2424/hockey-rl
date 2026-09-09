@@ -85,13 +85,20 @@ def test_reward_decomposes_into_exactly_three_known_terms():
 
 
 def test_possession_rate_is_zero_sum_and_pays_per_step():
-    """Unlike the potential terms, this one must reward *duration*."""
-    env = VecHockeyEnv(num_envs=1, seed=13)
+    """Unlike the potential terms, this one must reward *duration*.
+
+    The mechanism is tested with the rate switched on explicitly, because the
+    default is 0.0: it shipped as part of v5, which the ladder puts barely
+    above random, so it is available rather than assumed. Turn it on with
+    --set possession_rate=<v>.
+    """
+    cfg_on = Config(possession_rate=0.0015)
+    env = VecHockeyEnv(num_envs=1, cfg=cfg_on, seed=13)
     env.skater_pos[0] = [[0.0, 0.0], [-20.0, 9.0]]
     env.skater_vel[:] = 0.0
     env.theta[0] = [0.0, 0.0]
     env.omega[:] = 0.0
-    env.puck_pos[:] = [C.blade_offset, 0.0]
+    env.puck_pos[:] = [cfg_on.blade_offset, 0.0]
     env.puck_vel[:] = 0.0
     env._update_possession()
     assert env.possessor[0] == 0
@@ -129,12 +136,15 @@ def test_possession_rate_is_zero_sum_and_pays_per_step():
             hold_off += 1
             total_off += float(rew[0, 0])
     assert hold_off == hold_steps, "the two runs must be physically identical"
-    assert total - total_off == pytest.approx(C.possession_rate * hold_steps, abs=1e-9)
+    assert total - total_off == pytest.approx(cfg_on.possession_rate * hold_steps, abs=1e-9)
 
-    # And the point of the whole term: with it, holding is net positive;
-    # without it, a potential alone makes sitting on the puck cost you.
-    assert total > 0.0
-    assert total_off < 0.0
+    # The differential above is the real invariant. Whether holding ends up
+    # net *positive* depends on gamma: the discount drag is (1-gamma)*Phi, and
+    # at the incumbent's gamma of 0.995 the drag exceeds every rate that also
+    # keeps a full-episode hoard below a goal. That window is empty here, and
+    # the earlier version of this test quietly assumed it was not.
+    assert total_off < 0.0, "a potential alone makes sitting on the puck cost you"
+    assert total > total_off
 
 
 def test_shaping_cannot_be_farmed_by_a_closed_loop():

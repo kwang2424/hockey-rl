@@ -88,7 +88,7 @@ class Config:
     # Because it is potential-based it cannot create a reward loop -- the
     # optimal policy of the shaped MDP is the optimal policy of the real one.
     shaping_weight: float = 0.35
-    possession_weight: float = 0.08
+    possession_weight: float = 0.20
 
     # How much the puck-position term counts while the puck is LOOSE.
     #
@@ -103,7 +103,7 @@ class Config:
     # rather than antisymmetric, and would silently break the zero-sum
     # property; a shared factor times the antisymmetric position term stays
     # antisymmetric. tests/test_env.py enforces this.
-    loose_puck_factor: float = 0.75
+    loose_puck_factor: float = 0.5
 
     # Per-step reward for holding the puck. THIS ONE IS NOT POTENTIAL-BASED,
     # and that is deliberate.
@@ -128,7 +128,7 @@ class Config:
     # strictly dominates. The earlier 0.0015 made it 0.90 -- close enough to a
     # goal that the policy drifted towards keeping the puck and not shooting.
     # At gamma 0.995 no value satisfied both bounds at all.
-    possession_rate: float = 0.0008
+    possession_rate: float = 0.0
     # Being closer to the puck than your opponent. Written as a *difference*
     # between the two skaters so the potential stays antisymmetric and the
     # reward stays exactly zero-sum. This is the term that gets a fresh policy
@@ -143,7 +143,7 @@ class Config:
     # backwards. Because every term here is potential-based, reweighting
     # cannot change which policy is optimal; it only changes what is
     # learnable early.
-    proximity_weight: float = 0.6
+    proximity_weight: float = 1.0
     # Measure proximity from the stick blade, not the body centre. Possession
     # requires the puck within capture_radius of the BLADE, which sits
     # blade_offset ahead of the skater -- so a body-centre potential rewards
@@ -154,14 +154,13 @@ class Config:
     # that one, and if they diverge the shaping stops being policy-invariant.
     # tests/test_ppo.py asserts they agree.
     #
-    # 0.995 was too small on two counts. Its 200-step horizon covered only a
-    # third of a 600-step episode; and the shaping's discount drag,
-    # -(1-gamma)*Phi, grew with Phi, so carrying the puck toward the net went
-    # net-negative around centre ice -- the reward paid to carry the puck out
-    # of your own end and then charged you for carrying it at the goal.
-    # 0.998 gives a 500-step horizon and leaves carrying profitable
-    # everywhere on the ice.
-    gamma: float = 0.998
+    # Back to 0.995, the incumbent's value. 0.998 was argued for on horizon
+    # grounds (a 500-step horizon against a 600-step episode, versus 200) and
+    # the argument still looks right -- but it shipped as part of v5, which
+    # the ladder puts at 0.063, barely above random. Nothing here has been
+    # tested in isolation, so the defaults track the best measured
+    # configuration rather than the most persuasive reasoning.
+    gamma: float = 0.995
 
     # ---- reset ---------------------------------------------------------
     faceoff_jitter_pos: float = 3.0
