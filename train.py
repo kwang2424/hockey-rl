@@ -23,6 +23,56 @@ from hockey.rollout import play
 from rl.ppo import PPOTrainer, PPOConfig
 
 
+def apply_overrides(pairs):
+    """Turn --set KEY=VALUE into (env Config, ppo override dict).
+
+    Deliberately routes each key to whichever dataclass declares it and fails
+    loudly on an unknown one. A silently ignored --set would mean a run
+    labelled as testing a change actually tested nothing, which is worse than
+    an error -- and this project has already lost time to exactly that class
+    of silent no-op.
+    """
+    from dataclasses import replace, fields as dc_fields
+
+    env_names = {f.name: f.type for f in dc_fields(DEFAULT)}
+    ppo_names = {f.name: f.type for f in dc_fields(PPOConfig())}
+    env_kw, ppo_kw = {}, {}
+
+    for pair in pairs:
+        if "=" not in pair:
+            raise SystemExit(f"--set expects KEY=VALUE, got {pair!r}")
+        key, raw = pair.split("=", 1)
+        key = key.strip()
+        if key in env_names:
+            target, names = env_kw, env_names
+        elif key in ppo_names:
+            target, names = ppo_kw, ppo_names
+        else:
+            raise SystemExit(
+                f"--set: unknown config key {key!r}. "
+                f"Known env keys: {sorted(env_names)}. "
+                f"Known ppo keys: {sorted(ppo_names)}."
+            )
+        declared = str(names[key])
+        if "bool" in declared:
+            value = raw.strip().lower() in ("1", "true", "yes", "on")
+        elif "int" in declared:
+            value = int(raw)
+        else:
+            value = float(raw)
+        target[key] = value
+
+    if env_kw and ppo_kw and ("gamma" in env_kw) != ("gamma" in ppo_kw):
+        # The env discounts the potential and GAE discounts returns; they must
+        # agree or the shaping stops being potential-based.
+        raise SystemExit("--set gamma must be set for both Config and PPOConfig; "
+                         "use --set gamma=<v> alone and it is applied to both.")
+    if "gamma" in env_kw:
+        ppo_kw["gamma"] = env_kw["gamma"]
+
+    return (replace(DEFAULT, **env_kw) if env_kw else DEFAULT), ppo_kw
+
+
 BASE_FIELDS = ["update", "step", "elapsed_s", "sps", "ep_count", "goals_per_ep",
                "mean_reward", "pool_frac", "curriculum", "nonfinite_skips",
                "pg_loss", "v_loss", "entropy", "approx_kl", "grad_norm"]
@@ -62,9 +112,16 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=str, default="runs/v0")
     ap.add_argument("--device", type=str, default="cpu")
+    ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                    help="override ONE config knob, e.g. --set entropy_coef=0.001. "
+                         "Applies to Config or PPOConfig, whichever declares it. "
+                         "Recorded in the run config and the checkpoint so the run "
+                         "is self-describing.")
     ap.add_argument("--resume", action="store_true",
                     help="continue from <out>/latest.pt if it exists")
     args = ap.parse_args()
+
+    env_cfg, ppo_overrides = apply_overrides(args.set)
 
     p = PPOConfig(
         num_envs=args.num_envs, rollout_steps=args.rollout_steps,
@@ -75,8 +132,13 @@ def main():
         curriculum_frac=args.curriculum_frac,
         seed=args.seed, device=args.device, out_dir=args.out,
     )
+    for k, v in ppo_overrides.items():
+        setattr(p, k, v)
+
     os.makedirs(args.out, exist_ok=True)
-    trainer = PPOTrainer(p, DEFAULT)
+    trainer = PPOTrainer(p, env_cfg)
+    if args.set:
+        print(f"[train] overrides: {', '.join(args.set)}", flush=True)
 
     # Resume support exists because this environment restarts containers
     # roughly hourly, which killed a 30M-step run at 3.7M with no error. A run
@@ -89,7 +151,8 @@ def main():
               f"step {trainer.global_step:,}", flush=True)
 
     with open(os.path.join(args.out, "config.json"), "w") as f:
-        json.dump({"ppo": p.__dict__, "env": DEFAULT.to_dict()}, f, indent=2, default=str)
+        json.dump({"ppo": p.__dict__, "env": env_cfg.to_dict(),
+                   "overrides": args.set}, f, indent=2, default=str)
 
     csv_path = os.path.join(args.out, "progress.csv")
     writer, csv_file, t0 = None, None, time.time()
