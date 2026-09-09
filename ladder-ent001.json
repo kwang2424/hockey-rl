@@ -1,0 +1,141 @@
+{
+  "table": [
+    {
+      "name": "chase",
+      "goals_for": 6977,
+      "goals_against": 309,
+      "goal_share": 0.9576,
+      "goal_diff": 6668
+    },
+    {
+      "name": "v2-control-gated-reward",
+      "goals_for": 959,
+      "goals_against": 1333,
+      "goal_share": 0.4184,
+      "goal_diff": -374
+    },
+    {
+      "name": "v3-bounded-mean",
+      "goals_for": 521,
+      "goals_against": 1231,
+      "goal_share": 0.2974,
+      "goal_diff": -710
+    },
+    {
+      "name": "v0-baseline",
+      "goals_for": 323,
+      "goals_against": 1350,
+      "goal_share": 0.1931,
+      "goal_diff": -1027
+    },
+    {
+      "name": "v5-repriced-shooting",
+      "goals_for": 124,
+      "goals_against": 1651,
+      "goal_share": 0.0699,
+      "goal_diff": -1527
+    },
+    {
+      "name": "random",
+      "goals_for": 116,
+      "goals_against": 1664,
+      "goal_share": 0.0652,
+      "goal_diff": -1548
+    },
+    {
+      "name": "best",
+      "goals_for": 106,
+      "goals_against": 1588,
+      "goal_share": 0.0626,
+      "goal_diff": -1482
+    }
+  ],
+  "pairs": {
+    "v0-baseline vs v2-control-gated-reward": [
+      56,
+      171
+    ],
+    "v0-baseline vs v3-bounded-mean": [
+      55,
+      77
+    ],
+    "v0-baseline vs v5-repriced-shooting": [
+      72,
+      14
+    ],
+    "v0-baseline vs chase": [
+      35,
+      1059
+    ],
+    "v0-baseline vs random": [
+      53,
+      12
+    ],
+    "v0-baseline vs best": [
+      52,
+      17
+    ],
+    "v2-control-gated-reward vs v3-bounded-mean": [
+      138,
+      114
+    ],
+    "v2-control-gated-reward vs v5-repriced-shooting": [
+      167,
+      30
+    ],
+    "v2-control-gated-reward vs chase": [
+      131,
+      1059
+    ],
+    "v2-control-gated-reward vs random": [
+      179,
+      33
+    ],
+    "v2-control-gated-reward vs best": [
+      173,
+      41
+    ],
+    "v3-bounded-mean vs v5-repriced-shooting": [
+      63,
+      20
+    ],
+    "v3-bounded-mean vs chase": [
+      81,
+      992
+    ],
+    "v3-bounded-mean vs random": [
+      85,
+      16
+    ],
+    "v3-bounded-mean vs best": [
+      101,
+      10
+    ],
+    "v5-repriced-shooting vs chase": [
+      24,
+      1330
+    ],
+    "v5-repriced-shooting vs random": [
+      22,
+      14
+    ],
+    "v5-repriced-shooting vs best": [
+      14,
+      5
+    ],
+    "chase vs random": [
+      1312,
+      18
+    ],
+    "chase vs best": [
+      1225,
+      20
+    ],
+    "random vs best": [
+      23,
+      13
+    ]
+  },
+  "envs": 192,
+  "steps": 600
+}

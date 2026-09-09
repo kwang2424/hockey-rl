@@ -31,9 +31,19 @@ from .rollout import play
 
 
 def _name(spec):
+    """A label you can tell apart in a table.
+
+    Checkpoints inside runs/ are all called best.pt or latest.pt, so the bare
+    basename turns every candidate into "best" -- which is exactly as useful
+    as it sounds when three of them are in the same ladder.
+    """
     if spec in ("chase", "random", "still"):
         return spec
-    return os.path.splitext(os.path.basename(spec))[0]
+    stem = os.path.splitext(os.path.basename(spec))[0]
+    if stem in ("best", "latest", "final"):
+        parent = os.path.basename(os.path.dirname(spec))
+        return f"{parent}/{stem}" if parent else stem
+    return stem
 
 
 def run_ladder(specs, envs=96, steps=400, seed=0, verbose=True):

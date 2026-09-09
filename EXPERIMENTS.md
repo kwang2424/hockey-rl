@@ -85,10 +85,29 @@ stops the shaping being potential-based with nothing visibly failing.
 | run | single change vs incumbent | steps | goal share | verdict |
 |---|---|---|---|---|
 | v2 | *(incumbent)* | 19.7M | 0.378 | — |
-| exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | *running* | — |
+| exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.063 | **loss** — below random (0.065) |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
+
+### exp-ent001, in full
+
+The reasoning: entropy climbed in every previous run (v0 3.40, v3 3.59,
+v5 3.16), which is the signature of the entropy bonus outrunning the policy
+gradient and the policy diffusing back toward random. Lower the coefficient
+and it should hold still.
+
+The mechanism worked exactly as designed. Entropy fell monotonically for the
+first time in the project, 2.64 -> 1.88, reversing the pattern in every prior
+run.
+
+The player came last, below `random`.
+
+That is the fourth consecutive time a well-argued change, verified to do the
+thing it was designed to do, produced a worse hockey player. The most likely
+reading is the obvious one: less exploration meant the policy committed early
+to a poor strategy and never left it. Diagnosing the *mechanism* correctly
+said nothing about whether changing it helps.
 
 ## Practical notes
 
