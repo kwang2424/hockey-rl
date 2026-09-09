@@ -1,0 +1,42 @@
+ladder: 8 entrants, 192 envs x 600 steps per side
+
+  v0-baseline                    56 - 171  v2-control-gated-reward       <- v2-control-gated-reward better
+  v0-baseline                    55 - 77   v3-bounded-mean             
+  v0-baseline                    72 - 14   v5-repriced-shooting          <- v0-baseline better
+  v0-baseline                    35 - 1059 chase                         <- chase better
+  v0-baseline                    53 - 12   random                        <- v0-baseline better
+  v0-baseline                    54 - 11   exp-bounded/best              <- v0-baseline better
+  v0-baseline                    52 - 17   exp-ent001/best               <- v0-baseline better
+  v2-control-gated-reward       138 - 114  v3-bounded-mean             
+  v2-control-gated-reward       167 - 30   v5-repriced-shooting          <- v2-control-gated-reward better
+  v2-control-gated-reward       131 - 1059 chase                         <- chase better
+  v2-control-gated-reward       179 - 33   random                        <- v2-control-gated-reward better
+  v2-control-gated-reward       144 - 23   exp-bounded/best              <- v2-control-gated-reward better
+  v2-control-gated-reward       173 - 41   exp-ent001/best               <- v2-control-gated-reward better
+  v3-bounded-mean                63 - 20   v5-repriced-shooting          <- v3-bounded-mean better
+  v3-bounded-mean                81 - 992  chase                         <- chase better
+  v3-bounded-mean                85 - 16   random                        <- v3-bounded-mean better
+  v3-bounded-mean               102 - 15   exp-bounded/best              <- v3-bounded-mean better
+  v3-bounded-mean               101 - 10   exp-ent001/best               <- v3-bounded-mean better
+  v5-repriced-shooting           24 - 1330 chase                         <- chase better
+  v5-repriced-shooting           22 - 14   random                      
+  v5-repriced-shooting           12 - 5    exp-bounded/best            
+  v5-repriced-shooting           14 - 5    exp-ent001/best               <- v5-repriced-shooting better
+  chase                        1312 - 18   random                        <- chase better
+  chase                        1279 - 18   exp-bounded/best              <- chase better
+  chase                        1225 - 20   exp-ent001/best               <- chase better
+  random                         15 - 11   exp-bounded/best            
+  random                         22 - 18   exp-ent001/best             
+  exp-bounded/best               13 - 9    exp-ent001/best             
+
+rank  entrant                           GF    GA   diff   share
+1     chase                           8256   327  +7929   0.962
+2     v2-control-gated-reward         1103  1356   -253   0.449
+3     v3-bounded-mean                  623  1246   -623   0.333
+4     v0-baseline                      377  1361   -984   0.217
+5     v5-repriced-shooting             136  1656  -1520   0.076
+6     random                           130  1680  -1550   0.072
+7     exp-ent001/best                  120  1600  -1480   0.070
+8     exp-bounded/best                  96  1615  -1519   0.056
+
+wrote ladder-exp2.json

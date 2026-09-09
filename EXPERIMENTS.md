@@ -16,12 +16,17 @@ Current standings (192 envs x 600 steps per side, both ends played):
 
 | rank | entrant | goal share |
 |---|---|---|
-| 1 | `chase` (scripted) | 0.952 |
-| 2 | **`v2-control-gated-reward`** | **0.378** |
-| 3 | `v3-bounded-mean` | 0.256 |
-| 4 | `v0-baseline` | 0.169 |
-| 5 | `v5-repriced-shooting` | 0.063 |
-| 6 | `random` | 0.053 |
+| 1 | `chase` (scripted) | 0.962 |
+| 2 | **`v2-control-gated-reward`** | **0.449** |
+| 3 | `v3-bounded-mean` | 0.333 |
+| 4 | `v0-baseline` | 0.217 |
+| 5 | `v5-repriced-shooting` | 0.076 |
+| 6 | `random` | 0.072 |
+| 7 | `exp-ent001` (entropy_coef 0.001) | 0.070 |
+| 8 | `exp-bounded` (bounded_mean on) | 0.056 |
+
+Shares shift slightly as entrants are added, since each plays everyone; the
+ordering is what matters.
 
 Read that ordering carefully, because it is the opposite of the story the
 diagnostics told:
@@ -85,7 +90,8 @@ stops the shaping being potential-based with nothing visibly failing.
 | run | single change vs incumbent | steps | goal share | verdict |
 |---|---|---|---|---|
 | v2 | *(incumbent)* | 19.7M | 0.378 | — |
-| exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.063 | **loss** — below random (0.065) |
+| exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.070 | **loss** — below random (0.072) |
+| exp-bounded | `--set bounded_mean=1` (was off) | 12M | 0.056 | **loss** — last, below random |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -108,6 +114,45 @@ thing it was designed to do, produced a worse hockey player. The most likely
 reading is the obvious one: less exploration meant the policy committed early
 to a poor strategy and never left it. Diagnosing the *mechanism* correctly
 said nothing about whether changing it helps.
+
+### exp-bounded, in full
+
+Isolates the one change that separated v2 from v3: squashing the policy mean
+through tanh so it cannot leave the action range. The bug it fixes is real and
+was measured directly -- v0's actor emitted a shoot mean of +3.50 against an
+action range of [-1, 1], so about 1 possession in 278 ever sampled "do not
+shoot" and exploration in that dimension was effectively dead.
+
+It came **last**, at 0.056, below random and below the unbounded incumbent.
+
+This settles the earlier ambiguity in the least comfortable direction. v3 was
+v2 plus this change and scored worse; now the change on its own, cleanly
+isolated, scores worse again. So it was not something else in v3 -- bounding
+the mean genuinely costs more than the saturation it prevents, at least at
+this scale.
+
+The uncomfortable implication is that the saturated mean was doing useful
+work. An actor pinned far outside the action range produces a near-deterministic
+action in that dimension, and "always shoot on contact" appears to be a better
+policy at this skill level than anything the agent finds when it retains the
+freedom to choose.
+
+### Five for five
+
+Every deliberate improvement since v2 has lost:
+
+| change | verified to work mechanically? | ladder |
+|---|---|---|
+| puck-on-stick curriculum | yes | loss |
+| bounded policy mean | yes | loss |
+| gamma 0.995 -> 0.998 | yes | loss (in v5) |
+| repriced shooting | yes | loss (in v5) |
+| entropy_coef 0.004 -> 0.001 | yes | loss |
+
+The pattern is not that the diagnoses were wrong. Each mechanism was measured
+doing exactly what it was designed to do. The pattern is that **mechanism-level
+correctness has had no predictive relationship with skill** in this
+environment, and the only reliable signal has been head-to-head play.
 
 ## Practical notes
 
