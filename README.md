@@ -443,6 +443,48 @@ is 8.6 m -- the heading can now swing faster than the blades can redirect the
 velocity, so the skater slides. That is correct behaviour for a skate, and the
 reason a real player slows down before turning hard.
 
+### The reward retuning made the player worse
+
+Settled, and worth stating plainly. Across three iterations I retuned the
+reward -- gated the position term by puck control, added a per-step possession
+reward, raised gamma, rebalanced four weights -- each change justified by
+arithmetic and each verified to do what it was designed to do on the
+behavioural dashboard. The result loses decisively to the policy trained under
+the reward those changes were meant to fix:
+
+| matchup | result |
+|---|---|
+| v5 @ 12M vs v3 @ 30M | 11-50 |
+| v5 @ 24M vs v3 @ 30M | **10-56** |
+
+The second row removes the step-count confound: at comparable training the gap
+does not close, it widens slightly. And v3 is evaluated on physics it was never
+trained on (the turn-rate cap postdates it), so it wins from out of
+distribution.
+
+**The dashboard metrics did not predict skill.** v3 scores badly on every one
+of them -- possession 0.041s, fires on 81% of the steps it holds the puck, 0%
+of shots on target -- and beats v5 by more than five to one. v5 was tuned until
+those numbers looked better and got worse at hockey.
+
+The most likely explanation is uncomfortable: what I labelled reward hacking
+may have been a locally effective strategy. Winning the puck and immediately
+blasting it at the far end generates chances that an equally weak opponent
+cannot punish, and "fix" after "fix" removed that without supplying anything
+better. Every one of those changes was individually defensible; the composite
+was a regression, and only a head-to-head against a preserved older checkpoint
+showed it.
+
+Two things follow for anyone continuing this:
+
+- **Keep old checkpoints and play them head-to-head.** It is the only
+  measurement here that ever contradicted a confident conclusion. Behavioural
+  metrics, return curves and per-step reward arithmetic all agreed with each
+  other and were all wrong together.
+- **Change one thing per run and re-measure against the incumbent.** Three
+  reward changes were stacked between v3 and v5, so which one caused the
+  regression is unknown and would now take three runs to isolate.
+
 ### What is still broken
 
 v3 still fails three of five behavioural checks: possession 0.041s (needs
