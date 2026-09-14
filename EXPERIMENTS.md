@@ -92,7 +92,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | v2 | *(incumbent)* | 19.7M | 0.378 | — |
 | exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.070 | **loss** — below random (0.072) |
 | exp-bounded | `--set bounded_mean=1` (was off) | 12M | 0.056 | **loss** — last, below random |
-| exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | *running* | — |
+| exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | 0.069 | **loss** — barely above random (0.064) |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -155,7 +155,7 @@ ChaseBot-driven agents are masked out of the loss exactly as pool-driven ones
 are, and `chase_opponent_prob` and `pool_prob` split the probability mass
 rather than cannibalising each other.
 
-### Five for five
+### Six for six
 
 Every deliberate improvement since v2 has lost:
 
@@ -166,11 +166,25 @@ Every deliberate improvement since v2 has lost:
 | gamma 0.995 -> 0.998 | yes | loss (in v5) |
 | repriced shooting | yes | loss (in v5) |
 | entropy_coef 0.004 -> 0.001 | yes | loss |
+| ChaseBot as training opponent | yes | loss |
 
 The pattern is not that the diagnoses were wrong. Each mechanism was measured
 doing exactly what it was designed to do. The pattern is that **mechanism-level
 correctness has had no predictive relationship with skill** in this
 environment, and the only reliable signal has been head-to-head play.
+
+The last entry mattered most, because it was the only one that was not a knob
+on the reward or the optimiser. If self-play between two weak policies produced
+no useful gradient, training half the envs against a far stronger fixed
+opponent should have helped. It did not, which removes the most plausible
+structural explanation on the table.
+
+What remains untested is the one thing no change here addressed: whether
+anything improves given an order of magnitude more steps. v2 plateaued by
+roughly 10M of its 30M, which argues against it, but nothing has actually run
+long enough to settle it. That test is free on this hardware -- about three
+hours of uptime with `--resume` nudges -- and is the honest next step before
+concluding the setup is at fault.
 
 ## Practical notes
 
