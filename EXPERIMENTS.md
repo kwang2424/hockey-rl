@@ -92,6 +92,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | v2 | *(incumbent)* | 19.7M | 0.378 | — |
 | exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.070 | **loss** — below random (0.072) |
 | exp-bounded | `--set bounded_mean=1` (was off) | 12M | 0.056 | **loss** — last, below random |
+| exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | *running* | — |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -136,6 +137,23 @@ work. An actor pinned far outside the action range produces a near-deterministic
 action in that dimension, and "always shoot on contact" appears to be a better
 policy at this skill level than anything the agent finds when it retains the
 freedom to choose.
+
+### exp-chase: the structural hypothesis
+
+The first change here that is not a knob on the reward or the optimiser.
+
+The ladder's own numbers motivate it: ChaseBot sits at 0.96 goal share while no
+learned policy has exceeded 0.45, and every learned run plateaued by roughly
+10M steps. Self-play between two weak policies may simply produce no useful
+gradient -- neither punishes the other's mistakes, so there is nothing to
+climb. Training half the envs against a strong fixed opponent is the standard
+remedy, and it costs no extra compute: the same steps, against something worth
+beating.
+
+`opp_id` now encodes -1 the learner, -2 ChaseBot, >=0 a pool snapshot.
+ChaseBot-driven agents are masked out of the loss exactly as pool-driven ones
+are, and `chase_opponent_prob` and `pool_prob` split the probability mass
+rather than cannibalising each other.
 
 ### Five for five
 

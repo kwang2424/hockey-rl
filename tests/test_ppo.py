@@ -246,3 +246,70 @@ def test_shot_price_is_recorded_not_asserted_to_be_right():
     cost = C.shaping_weight * offensive * (1 - C.loose_puck_factor) + C.possession_weight
     breakeven = cost / C.goal_reward
     assert 0.0 < breakeven < 0.6, f"break-even shot success rate is {breakeven:.1%}"
+
+
+def test_chase_opponent_is_not_trained_on():
+    """ChaseBot's actions must never be credited to the policy.
+
+    opp_id uses -1 for the learner, -2 for ChaseBot and >=0 for the pool, so a
+    `< 0` learner test would quietly treat every scripted action as one the
+    policy chose and train on it.
+    """
+    import numpy as np
+    from rl.ppo import CHASE_OPPONENT
+
+    t = PPOTrainer(PPOConfig(num_envs=32, rollout_steps=8, chase_opponent_prob=1.0,
+                             pool_prob=0.0, seed=0))
+    t._reassign_opponents(np.arange(32))
+    assert (t.opp_id == CHASE_OPPONENT).all()
+    batch, stats = t.collect()
+    mask = batch["mask"].reshape(-1, 2)
+    assert mask[:, 0].all(), "team A is always the learner"
+    assert not mask[:, 1].any(), "ChaseBot-driven team B must be masked out"
+    assert stats["chase_frac"] == pytest.approx(1.0)
+
+
+def test_chase_opponent_receives_raw_observations():
+    """The scripted opponent must be fed raw observations, not whitened ones.
+
+    It reads through OBS_SLICES and multiplies by rink_length to recover
+    metres, so its distance comparisons (shoot_range) and its possession flags
+    are only meaningful on raw input.
+
+    Worth recording what this is *not*: feeding it normalised input barely
+    changes its strength (94 goals vs 91 in a direct comparison), because
+    almost all of its steering is arctan2 of a vector and an angle survives
+    per-component rescaling. An earlier version of this test asserted a large
+    behavioural gap and failed. So this checks the wiring directly instead of
+    claiming a consequence that is not there.
+    """
+    import numpy as np
+    from hockey.bots import ChaseBot
+    from rl.ppo import CHASE_OPPONENT
+
+    t = PPOTrainer(PPOConfig(num_envs=16, rollout_steps=4, chase_opponent_prob=1.0,
+                             pool_prob=0.0, seed=0))
+    t._reassign_opponents(np.arange(16))
+    raw = t.env.observe()
+
+    # Give the normaliser non-trivial statistics so raw and whitened differ.
+    t.norm.update(raw.reshape(-1, raw.shape[-1]))
+    whitened = t.norm(raw.reshape(-1, raw.shape[-1])).reshape(raw.shape)
+    assert not np.allclose(raw, whitened), "normaliser is a no-op; test proves nothing"
+
+    got = t._chase_actions(raw[:, 1])
+    expect_raw = np.clip(ChaseBot(t.cfg).act(raw[:, 1], deterministic=False), -1, 1)
+    assert np.allclose(got, expect_raw), "trainer did not feed ChaseBot raw observations"
+
+
+def test_chase_and_pool_probabilities_do_not_cannibalise_each_other():
+    import numpy as np
+    from rl.ppo import CHASE_OPPONENT
+
+    t = PPOTrainer(PPOConfig(num_envs=4000, rollout_steps=4,
+                             chase_opponent_prob=0.5, pool_prob=0.25, seed=1))
+    t._snapshot()
+    t._reassign_opponents(np.arange(4000))
+    assert np.mean(t.opp_id == CHASE_OPPONENT) == pytest.approx(0.5, abs=0.03)
+    assert np.mean(t.opp_id >= 0) == pytest.approx(0.25, abs=0.03)
+    assert np.mean(t.opp_id == -1) == pytest.approx(0.25, abs=0.03)

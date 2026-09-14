@@ -21,7 +21,10 @@ import torch
 import torch.nn as nn
 
 from hockey.config import Config, DEFAULT
+from hockey.bots import ChaseBot
 from hockey.env import VecHockeyEnv, OBS_DIM, ACT_DIM
+
+CHASE_OPPONENT = -2   # opp_id sentinel for the scripted opponent
 from .nets import ActorCritic, RunningNorm, TorchPolicy
 
 
@@ -53,6 +56,17 @@ class PPOConfig:
     # re-measure rather than assuming.
     bounded_mean: bool = False
     max_log_std: float = 10.0    # effectively no ceiling
+
+    # Fraction of envs whose team B is the scripted ChaseBot rather than the
+    # learner or a frozen snapshot. Off by default.
+    #
+    # The motivation is the ladder: ChaseBot sits at 0.96 goal share while no
+    # learned policy has exceeded 0.45, and every learned run plateaued early.
+    # Self-play between two weak policies may simply not produce a useful
+    # gradient -- neither punishes the other's mistakes, so there is nothing to
+    # climb. A strong fixed opponent is the standard remedy and costs no extra
+    # compute: the same steps, against something worth beating.
+    chase_opponent_prob: float = 0.0
 
     # opponent pool
     pool_prob: float = 0.35      # fraction of envs facing a frozen snapshot
@@ -101,6 +115,7 @@ class PPOTrainer:
         self.rng = np.random.default_rng(self.p.seed + 777)
         # -1 means "team B is the learner too"; >=0 indexes into the pool.
         self.opp_id = np.full(self.p.num_envs, -1, dtype=np.int64)
+        self._chase_bot = ChaseBot(cfg)
 
         self.global_step = 0
         self.update = 0
@@ -131,13 +146,46 @@ class PPOTrainer:
             self.pool_nets.pop(0)
 
     def _reassign_opponents(self, idx):
-        """Pick team B's controller for the envs that just reset."""
-        if idx.size == 0 or not self.pool_nets:
-            self.opp_id[idx] = -1
+        """Pick team B's controller for the envs that just reset.
+
+        opp_id encoding: -1 the learner itself, -2 the scripted ChaseBot,
+        >=0 an index into the frozen snapshot pool.
+        """
+        if idx.size == 0:
             return
-        use_pool = self.rng.random(idx.size) < self.p.pool_prob
-        picks = self.rng.integers(0, len(self.pool_nets), idx.size)
-        self.opp_id[idx] = np.where(use_pool, picks, -1)
+        r = self.rng.random(idx.size)
+        assigned = np.full(idx.size, -1, dtype=np.int64)
+
+        chase_p = self.p.chase_opponent_prob
+        is_chase = r < chase_p
+        assigned[is_chase] = CHASE_OPPONENT
+
+        if self.pool_nets:
+            # Split the remaining probability mass, so pool_prob keeps meaning
+            # "this fraction of all envs" rather than shifting when chase is on.
+            is_pool = (~is_chase) & (r < chase_p + self.p.pool_prob)
+            picks = self.rng.integers(0, len(self.pool_nets), idx.size)
+            assigned = np.where(is_pool, picks, assigned)
+
+        self.opp_id[idx] = assigned
+
+    def _chase_actions(self, obs_b_raw):
+        """Actions for team B in envs assigned to ChaseBot.
+
+        Note the *raw* observations. ChaseBot reads through OBS_SLICES and
+        multiplies by rink_length to recover metres, so its distance tests
+        (shoot_range) and possession flags are only meaningful on raw input.
+
+        Measured caveat: feeding it whitened input barely weakens it (94 goals
+        against 91 in a direct comparison), because nearly all of its steering
+        is arctan2 of a vector and an angle survives per-component rescaling.
+        Raw is still correct; it is just not the catastrophe it looks like.
+        """
+        act = np.zeros((self.p.num_envs, ACT_DIM), dtype=np.float32)
+        m = self.opp_id == CHASE_OPPONENT
+        if m.any():
+            act[m] = self._chase_bot.act(obs_b_raw[m], deterministic=False)
+        return np.clip(act, -1.0, 1.0)
 
     @torch.no_grad()
     def _pool_actions(self, obs_b_norm):
@@ -182,9 +230,17 @@ class PPOTrainer:
             logp_buf[t] = lp.cpu().numpy().reshape(n_env, 2)
             val_buf[t] = v.cpu().numpy().reshape(n_env, 2)
 
-            learner_b = self.opp_id < 0
+            # Only -1 is the learner; -2 is ChaseBot and >=0 is the pool. A
+            # `< 0` test here would train on ChaseBot's actions as if the
+            # policy had chosen them.
+            learner_b = self.opp_id == -1
             if not learner_b.all():
-                a[:, 1] = np.where(learner_b[:, None], a[:, 1], self._pool_actions(norm[:, 1]))
+                if (self.opp_id >= 0).any():
+                    a[:, 1] = np.where((self.opp_id >= 0)[:, None],
+                                       self._pool_actions(norm[:, 1]), a[:, 1])
+                if (self.opp_id == CHASE_OPPONENT).any():
+                    a[:, 1] = np.where((self.opp_id == CHASE_OPPONENT)[:, None],
+                                       self._chase_actions(raw[:, 1]), a[:, 1])
             act_buf[t] = a
             mask_buf[t, :, 0] = 1.0
             mask_buf[t, :, 1] = learner_b
@@ -230,6 +286,7 @@ class PPOTrainer:
             "goals_per_ep": float(ep_goals.sum() / max(ep_count, 1)),
             "mean_reward": float(rew_buf[..., 0].mean()),
             "pool_frac": float((self.opp_id >= 0).mean()),
+            "chase_frac": float((self.opp_id == CHASE_OPPONENT).mean()),
         }
         return batch, stats
 
