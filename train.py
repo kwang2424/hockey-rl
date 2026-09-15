@@ -117,6 +117,12 @@ def main():
                          "Applies to Config or PPOConfig, whichever declares it. "
                          "Recorded in the run config and the checkpoint so the run "
                          "is self-describing.")
+    ap.add_argument("--archive-every", type=int, default=0, metavar="STEPS",
+                    help="also save an immutable snapshot every N steps, as "
+                         "<out>/archive/step_<n>.pt. Needed to ladder a run's "
+                         "trajectory: best.pt is overwritten, so without this a "
+                         "long run only yields an endpoint and cannot show "
+                         "whether it was still improving or plateaued early.")
     ap.add_argument("--resume", action="store_true",
                     help="continue from <out>/latest.pt if it exists")
     args = ap.parse_args()
@@ -161,6 +167,13 @@ def main():
     # elapsed time inflates it badly after a resume (27k/s reported against an
     # actual 11k/s).
     steps_at_start = trainer.global_step
+    # Survive resumes: never re-archive a milestone an earlier process wrote.
+    _adir = os.path.join(args.out, "archive")
+    last_archived = 0
+    if os.path.isdir(_adir):
+        done = [int(f[5:-3]) for f in os.listdir(_adir)
+                if f.startswith("step_") and f.endswith(".pt")]
+        last_archived = max(done) if done else 0
     per_update = p.num_envs * p.rollout_steps
     n_updates = max(1, args.total_steps // per_update)
     best = -1e9
@@ -189,6 +202,14 @@ def main():
         # Save every update: a restart then costs one update, not one eval
         # period. Writing 177 KB at ~11k steps/sec is not a measurable cost.
         trainer.save(resume_path)
+
+        if args.archive_every > 0:
+            milestone = (trainer.global_step // args.archive_every) * args.archive_every
+            if milestone > last_archived:
+                last_archived = milestone
+                snap = os.path.join(args.out, "archive", f"step_{milestone:09d}.pt")
+                trainer.save(snap)
+                print(f"[train] archived {snap}", flush=True)
 
         if update % p.eval_every == 0 or update == n_updates:
             row.update(evaluate(trainer, p.eval_steps, p.eval_envs))
