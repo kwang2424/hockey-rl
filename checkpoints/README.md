@@ -9,10 +9,21 @@ are measured from them and are otherwise unreproducible.
 | `v0-baseline.pt` | 29.5M | original reward, unbounded policy mean | -7.73 /min |
 | `v2-control-gated-reward.pt` | 19.7M | puck position discounted while loose | -6.66 /min |
 | `v3-bounded-mean.pt` | 30.0M | + policy mean squashed into the action range | -6.98 /min |
+| `v6-100m-compute.pt` | 70.0M | **no change at all** -- same setup, more steps | -5.16 /min |
 
-`v3` is the strongest: it beats `v0` 67-39 head-to-head with ends swapped, and
-ties `v2` (65-81, CI includes 0.5). None of them plays hockey well -- see the
-top-level README for what is still broken.
+`v6` is by a clear margin the strongest, and the only one that beats `v2`
+head-to-head (98-38). Nothing about the reward, network or hyperparameters
+differs from the runs above; the only input was compute. It is the 70M snapshot
+of `exp-100m`, chosen because it ranked top of a 13-entrant ladder over that
+run's whole trajectory -- note that 50M through 100M are all statistically tied
+with it, so the specific snapshot is close to arbitrary within that band.
+
+Among the older three, `v3` is strongest: it beats `v0` 67-39 with ends
+swapped, and ties `v2` (65-81, CI includes 0.5).
+
+None of them plays hockey well. `v6` scores by possession and crashing the net,
+not by shooting -- its shoot channel is pure noise (sigma = 7.8 against a
+[-1, 1] clip). See `EXPERIMENTS.md` for why.
 
 ## Use them
 

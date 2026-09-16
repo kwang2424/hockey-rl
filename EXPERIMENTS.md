@@ -93,7 +93,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.070 | **loss** — below random (0.072) |
 | exp-bounded | `--set bounded_mean=1` (was off) | 12M | 0.056 | **loss** — last, below random |
 | exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | 0.069 | **loss** — barely above random (0.064) |
-| exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 70M | **beats v2, 98-38** | **compute bound it to 40M; bends there, then crawls** |
+| exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 70M (v6) | **0.579, beats v2 98-38** | **win** -- but all of it bought between 20M and 40M |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -156,117 +156,122 @@ ChaseBot-driven agents are masked out of the loss exactly as pool-driven ones
 are, and `chase_opponent_prob` and `pool_prob` split the probability mass
 rather than cannibalising each other.
 
-### exp-100m: the plateau was a measurement artifact
+### exp-100m: the plateau was a measurement artifact -- but compute ran out too
 
-Laddering archived snapshots of a single unmodified run, against a fixed field:
+100M steps, one unmodified run, snapshots every 10M, every snapshot laddered
+against a fixed field. Roughly three hours of free container time.
 
-| snapshot | goal share | head-to-head vs v2 |
+**Final ladder, 13 entrants, 78 pairs, both ends:**
+
+| rank | entrant | share |
 |---|---|---|
-| 10M | 0.076 | 20 - 63 loss |
-| 20M | 0.108 | 24 - 67 loss |
-| 30M | 0.266 | 27 - 45 loss |
-| 40M | 0.509 | **77 - 54 win** (+23) |
-| 50M | 0.542 | **78 - 43 win** (+35) |
-| 60M | 0.571 | **94 - 32 win** (+62) |
-| 70M | -- | **98 - 38 win** (+60) |
+| 1 | chase | 0.899 |
+| 2 | **70M** | **0.579** |
+| 3 | 90M | 0.574 |
+| 4 | 100M (final) | 0.559 |
+| 5 | 80M | 0.556 |
+| 6 | 60M | 0.530 |
+| 7 | 50M | 0.512 |
+| 8 | 40M | 0.468 |
+| 9 | *v2 (previous best)* | *0.341* |
+| 10 | 30M | 0.238 |
+| 11 | 20M | 0.160 |
+| 12 | 10M | 0.107 |
+| 13 | random | 0.095 |
 
-Goal share is field-dependent, so the shares above are only comparable within
-one ladder; the vs-v2 column and the consecutive-snapshot pairings below are
-not, and those are the series to read.
+**Consecutive snapshots, played directly:**
 
-(Shares are from the 7-entrant ladder and are not comparable across fields;
-the vs-v2 column is, because it is one fixed pairing played at both ends.)
+| interval | result |
+|---|---|
+| 10M -> 20M | 4 - 5 tie |
+| 20M -> 30M | 6 - 40 **clear gain** |
+| 30M -> 40M | 32 - 67 **clear gain** |
+| 40M -> 50M | 61 - 71 tie |
+| 50M -> 60M | 77 - 76 tie |
+| 60M -> 70M | 69 - 79 tie |
+| 70M -> 80M | 80 - 77 tie |
+| 80M -> 90M | 88 - 82 tie |
+| 90M -> 100M | 77 - 88 tie |
 
-It climbs monotonically and steeply through 40M -- a 7x improvement in goal
-share between 10M and 40M. At 40M it passes v2 head-to-head, the first
-checkpoint in this project to do so, having lost to it 27-45 only 10M steps
-earlier.
+All the skill in this run was bought between 20M and 40M. The sharpest way to
+say it: **50M and 100M play 80-80.** The last half of the run bought nothing
+measurable.
 
-**Then it bends, at 40M, and stays bent.** The per-interval gain collapses from
-+0.26 share (30M -> 40M) to a steady +0.03 per 10M afterwards:
+**vs v2, the fixed reference (margin):** -43, -43, -18, +23, +35, +62, +60,
++74, +71, +75. Widens through 60M, then plateaus.
 
-| interval | share gain | snapshots played directly |
-|---|---|---|
-| 30M -> 40M | +0.26 | 32 - 67, clear |
-| 40M -> 50M | +0.03 | 61 - 71, noise |
-| 50M -> 60M | +0.03 | 77 - 76, dead tie |
-| 60M -> 70M | -- | 69 - 79, tie |
+#### The correction this run forced
 
-Consecutive snapshots 10M apart are now indistinguishable head-to-head. The
-margin over v2 widened for a while (+23 -> +35 -> +62) without contradicting
-that, because goal *difference* against a frozen weak reference grows
-superlinearly in skill. By 70M it has stopped widening too (+60), so the two
-measurements now agree. When they disagreed, the direct pairing was the one
-designed not to lie, and it was right.
+The "v2 plateaued by 10M" reading, stated repeatedly in this file, was wrong,
+and the way it was wrong is the lesson. It came from `vs_chase` going flat --
+but ChaseBot was so much stronger than any learned policy that goal difference
+saturated at about -9/min whether the policy was improving or not. The metric
+had no resolution in the range where all the progress was happening. It only
+came back into range late: chase's share over the field fell 0.955 -> 0.899 by
+the end, and against 70M it manages 277-77 rather than the 326-32 it managed
+against 40M.
 
-**Nothing about the setup was changed to get this.** It is the same reward, the
-same network, the same hyperparameters that lost six experiments in a row. The
-only input was steps.
+Consequences, both acted on:
 
-#### A caveat carried forward
+- **`best.pt` is selected on `vs_chase`**, so every experiment's "best"
+  checkpoint was an arbitrary snapshot rather than its strongest. This run's
+  own `best.pt` is a ~70M snapshot by luck, not design. Ladder `final.pt` and
+  the archive explicitly; do not trust `best.pt`.
+- **Ladder trajectories, not endpoints.** A single final number cannot tell a
+  climb from a plateau, and the six-loss narrative below was built entirely on
+  endpoints -- taken at 12M, which this run shows is *before the learning
+  starts*. Those six verdicts are mostly measurements of noise. They are left
+  recorded below because the reasoning is still worth reading, but they should
+  not be treated as settled.
 
-The policy's action noise is *growing* over this run, not shrinking:
+#### Where it actually stopped, and why
+
+Policy standard deviation, read straight off each checkpoint -- free, no
+simulation required:
 
 | | std(fwd) | std(turn) | std(shoot) |
 |---|---|---|---|
-| v2 | 0.648 | 0.478 | 1.129 |
 | 10M | 0.677 | 0.528 | 0.931 |
 | 20M | 0.857 | 0.511 | 1.504 |
 | 30M | 0.938 | 0.496 | 2.151 |
+| 40M | 0.996 | **0.336** | 3.207 |
 | 50M | 1.001 | 0.237 | 4.639 |
-| 60M | 1.116 | 0.173 | 6.29 |
-| 70M | 1.321 | **0.132** | **7.799** |
+| 60M | 1.116 | 0.173 | 6.290 |
+| 70M | 1.321 | 0.132 | 7.799 |
+| 80M | 1.565 | 0.109 | 9.468 |
+| 90M | 1.759 | 0.097 | 10.647 |
+| 100M | 1.815 | **0.096** | **11.122** |
 
-Entropy climbs monotonically 2.75 -> 4.34 across the run. `mean_reward` sits at
-roughly +/-0.0002 -- the shaping terms very nearly cancel -- so on any action
-channel where the task gradient is weak, the entropy bonus is the only force
-acting and it inflates sigma unopposed. At sigma = 2.15 against a [-1, 1] clip
-the shot trigger is close to a coin flip. The turn channel is the one dimension
-holding its shape, which is consistent with positioning being what wins these
-games at this skill level.
+Ten points, monotonic in every column, no reversals.
 
-The 50M row is the one to look at, because it arrived in the same interval as
-the bend and it splits the two channels in opposite directions. `turn` halves,
-0.496 -> 0.237: that channel has a real task gradient and the policy is
-sharpening it. `shoot` more than doubles again, 2.151 -> 4.639: against a
-[-1, 1] clip that is not a noisy trigger any more, it is a fair coin on every
-step, and no amount of further compute recovers a channel whose gradient has
-been drowned.
+`mean_reward` sits at roughly +/-0.0002 all run -- the shaping terms very nearly
+cancel -- so on any action channel where the task gradient is weak, the entropy
+bonus is the only force acting and it inflates sigma unopposed. `shoot` ends at
+sigma = 11.1 against a [-1, 1] clip: a fair coin on every step. `fwd` follows
+it. `turn` is the sole channel with a gradient strong enough to resist, and it
+tightens 5.5x.
 
-So the bend and the divergence are the same event, and the reading is:
-**positioning is still improving and shooting has stopped being learned at
-all.** That is consistent with how the goals are being scored -- these look
-like possession-and-crash goals, not shots.
+The timing lines up exactly. `std(turn)` sits flat at 0.53/0.51/0.50 through
+30M, then breaks to 0.336 in the 30M -> 40M interval -- the same interval as
+the one big ladder jump and the crossover past v2. The steering channel
+starting to sharpen and the skill gain are the same event. After that turn
+keeps tightening while the ladder crawls, i.e. the policy goes on refining
+positioning it has already largely learned, while the half of the game that
+needs the shoot channel stays out of reach.
 
-The 60M row settles the "one interval is not a trend" objection: both channels
-continued straight through it, turn 0.237 -> 0.173 and shoot 4.639 -> 6.29,
-while the share gain stayed at its new slow rate. The divergence is not an
-artifact of one snapshot.
+**So compute was genuinely the binding constraint from 10M to 40M -- a 5x gain
+in goal share that nothing else in this project produced -- and it stopped
+being the binding constraint at 40M.** Both halves of that sentence are
+results. More steps will not recover a channel whose gradient has already been
+drowned.
 
-The obvious single-variable follow-up is therefore a per-channel entropy floor
-(or simply a lower `entropy_coef`) rather than more steps. Note this is *not* a
-re-run of exp-entropy, which lowered `entropy_coef` globally at 12M -- i.e. in
-the range where, as established above, nothing had started happening yet and
-every verdict was noise.
+The clean single-variable follow-up is a per-channel entropy floor, or simply a
+lower `entropy_coef`. Note this is *not* a re-run of exp-entropy below, which
+lowered the coefficient globally and was judged at 12M -- inside the range now
+known to be all noise.
 
-**This contradicts a claim made repeatedly earlier in this file, and the
-correction matters more than the result.** The "v2 plateaued by 10M" reading
-came from `vs_chase` going flat. But ChaseBot is so much stronger than any
-learned policy that the goal difference saturates: everything looks like
-roughly -9 per minute whether it is genuinely improving or not. The metric had
-no resolution in the range where all the actual progress was happening.
-
-Two consequences worth acting on:
-
-- **`vs_chase` is not a usable progress signal at this skill level**, and the
-  `best.pt` selection in `train.py` is driven by it. So every experiment's
-  "best" checkpoint was effectively a random one from the run rather than its
-  strongest -- which weakens, though does not overturn, the six recorded
-  losses. Each still lost, but each was judged on an arbitrarily-chosen
-  snapshot.
-- Ladder *trajectories*, not endpoints. A single final number cannot
-  distinguish a climb from a plateau, and the whole six-loss narrative was
-  built on endpoints.
+`checkpoints/v6-100m-compute.pt` is the 70M snapshot, the top-ranked entrant.
+Verified after slimming: beats v2 96-45, ties its own source 82-67.
 
 ### Six for six
 
