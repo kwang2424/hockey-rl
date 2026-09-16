@@ -93,7 +93,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.070 | **loss** — below random (0.072) |
 | exp-bounded | `--set bounded_mean=1` (was off) | 12M | 0.056 | **loss** — last, below random |
 | exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | 0.069 | **loss** — barely above random (0.064) |
-| exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 60M | **beats v2, 94-32** | **compute bound it to 40M; bends there, then crawls** |
+| exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 70M | **beats v2, 98-38** | **compute bound it to 40M; bends there, then crawls** |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -167,8 +167,12 @@ Laddering archived snapshots of a single unmodified run, against a fixed field:
 | 30M | 0.266 | 27 - 45 loss |
 | 40M | 0.509 | **77 - 54 win** (+23) |
 | 50M | 0.542 | **78 - 43 win** (+35) |
-| 60M | **0.571** | **94 - 32 win** (+62) |
-| *(v2, for reference)* | *0.380* | -- |
+| 60M | 0.571 | **94 - 32 win** (+62) |
+| 70M | -- | **98 - 38 win** (+60) |
+
+Goal share is field-dependent, so the shares above are only comparable within
+one ladder; the vs-v2 column and the consecutive-snapshot pairings below are
+not, and those are the series to read.
 
 (Shares are from the 7-entrant ladder and are not comparable across fields;
 the vs-v2 column is, because it is one fixed pairing played at both ends.)
@@ -186,13 +190,14 @@ earlier.
 | 30M -> 40M | +0.26 | 32 - 67, clear |
 | 40M -> 50M | +0.03 | 61 - 71, noise |
 | 50M -> 60M | +0.03 | 77 - 76, dead tie |
+| 60M -> 70M | -- | 69 - 79, tie |
 
 Consecutive snapshots 10M apart are now indistinguishable head-to-head. The
-margin over v2 keeps widening (+23 -> +35 -> +62), but that is what a fixed
-weak opponent does under slow steady improvement -- goal *difference* against a
-frozen reference grows superlinearly in skill, so a widening margin there is
-compatible with the crawl the direct pairings show. When two measurements
-disagree, the direct pairing is the one that was designed not to lie.
+margin over v2 widened for a while (+23 -> +35 -> +62) without contradicting
+that, because goal *difference* against a frozen weak reference grows
+superlinearly in skill. By 70M it has stopped widening too (+60), so the two
+measurements now agree. When they disagreed, the direct pairing was the one
+designed not to lie, and it was right.
 
 **Nothing about the setup was changed to get this.** It is the same reward, the
 same network, the same hyperparameters that lost six experiments in a row. The
@@ -209,7 +214,8 @@ The policy's action noise is *growing* over this run, not shrinking:
 | 20M | 0.857 | 0.511 | 1.504 |
 | 30M | 0.938 | 0.496 | 2.151 |
 | 50M | 1.001 | 0.237 | 4.639 |
-| 60M | 1.116 | **0.173** | **6.29** |
+| 60M | 1.116 | 0.173 | 6.29 |
+| 70M | 1.321 | **0.132** | **7.799** |
 
 Entropy climbs monotonically 2.75 -> 4.34 across the run. `mean_reward` sits at
 roughly +/-0.0002 -- the shaping terms very nearly cancel -- so on any action
