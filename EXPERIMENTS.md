@@ -93,6 +93,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.070 | **loss** — below random (0.072) |
 | exp-bounded | `--set bounded_mean=1` (was off) | 12M | 0.056 | **loss** — last, below random |
 | exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | 0.069 | **loss** — barely above random (0.064) |
+| exp-100m | *(no change)* — 100M steps, snapshots every 10M | 30M+ | climbing | **compute was a real constraint** |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -154,6 +155,39 @@ beating.
 ChaseBot-driven agents are masked out of the loss exactly as pool-driven ones
 are, and `chase_opponent_prob` and `pool_prob` split the probability mass
 rather than cannibalising each other.
+
+### exp-100m: the plateau was a measurement artifact
+
+Laddering archived snapshots of a single unmodified run, against a fixed field:
+
+| snapshot | goal share |
+|---|---|
+| 10M | 0.079 |
+| 20M | 0.121 |
+| 30M | **0.256** |
+| *(v2, for reference)* | *0.372* |
+
+It is climbing, monotonically and steeply -- a 3.2x improvement between 10M and
+30M with no sign of flattening.
+
+**This contradicts a claim made repeatedly earlier in this file, and the
+correction matters more than the result.** The "v2 plateaued by 10M" reading
+came from `vs_chase` going flat. But ChaseBot is so much stronger than any
+learned policy that the goal difference saturates: everything looks like
+roughly -9 per minute whether it is genuinely improving or not. The metric had
+no resolution in the range where all the actual progress was happening.
+
+Two consequences worth acting on:
+
+- **`vs_chase` is not a usable progress signal at this skill level**, and the
+  `best.pt` selection in `train.py` is driven by it. So every experiment's
+  "best" checkpoint was effectively a random one from the run rather than its
+  strongest -- which weakens, though does not overturn, the six recorded
+  losses. Each still lost, but each was judged on an arbitrarily-chosen
+  snapshot.
+- Ladder *trajectories*, not endpoints. A single final number cannot
+  distinguish a climb from a plateau, and the whole six-loss narrative was
+  built on endpoints.
 
 ### Six for six
 

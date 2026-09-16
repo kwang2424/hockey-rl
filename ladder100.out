@@ -1,0 +1,4 @@
+ladder: 9 entrants, 192 envs x 600 steps per side
+
+  v0-baseline                    56 - 171  v2-control-gated-reward       <- v2-control-gated-reward better
+  v0-baseline                    55 - 77   v3-bounded-mean             

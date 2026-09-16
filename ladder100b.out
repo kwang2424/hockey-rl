@@ -1,0 +1,27 @@
+ladder: 6 entrants, 192 envs x 600 steps per side
+
+  v2-control-gated-reward       165 - 53   step_010000000                <- v2-control-gated-reward better
+  v2-control-gated-reward       183 - 81   step_020000000                <- v2-control-gated-reward better
+  v2-control-gated-reward       122 - 94   step_030000000              
+  v2-control-gated-reward       131 - 1059 chase                         <- chase better
+  v2-control-gated-reward       184 - 39   random                        <- v2-control-gated-reward better
+  step_010000000                 16 - 15   step_020000000              
+  step_010000000                 27 - 142  step_030000000                <- step_030000000 better
+  step_010000000                 25 - 1267 chase                         <- chase better
+  step_010000000                 16 - 18   random                      
+  step_020000000                 42 - 106  step_030000000                <- step_030000000 better
+  step_020000000                 38 - 1191 chase                         <- chase better
+  step_020000000                 31 - 10   random                        <- step_020000000 better
+  step_030000000                 39 - 1248 chase                         <- chase better
+  step_030000000                123 - 26   random                        <- step_030000000 better
+  chase                        1312 - 18   random                        <- chase better
+
+rank  entrant                           GF    GA   diff   share
+1     chase                           6077   251  +5826   0.960
+2     v2-control-gated-reward          785  1326   -541   0.372
+3     step_030000000                   504  1465   -961   0.256
+4     step_020000000                   207  1506  -1299   0.121
+5     step_010000000                   137  1607  -1470   0.079
+6     random                           111  1666  -1555   0.062
+
+wrote ladder-100m.json

@@ -1,0 +1,110 @@
+{
+  "table": [
+    {
+      "name": "chase",
+      "goals_for": 6077,
+      "goals_against": 251,
+      "goal_share": 0.9603,
+      "goal_diff": 5826
+    },
+    {
+      "name": "v2-control-gated-reward",
+      "goals_for": 785,
+      "goals_against": 1326,
+      "goal_share": 0.3719,
+      "goal_diff": -541
+    },
+    {
+      "name": "step_030000000",
+      "goals_for": 504,
+      "goals_against": 1465,
+      "goal_share": 0.256,
+      "goal_diff": -961
+    },
+    {
+      "name": "step_020000000",
+      "goals_for": 207,
+      "goals_against": 1506,
+      "goal_share": 0.1208,
+      "goal_diff": -1299
+    },
+    {
+      "name": "step_010000000",
+      "goals_for": 137,
+      "goals_against": 1607,
+      "goal_share": 0.0786,
+      "goal_diff": -1470
+    },
+    {
+      "name": "random",
+      "goals_for": 111,
+      "goals_against": 1666,
+      "goal_share": 0.0625,
+      "goal_diff": -1555
+    }
+  ],
+  "pairs": {
+    "v2-control-gated-reward vs step_010000000": [
+      165,
+      53
+    ],
+    "v2-control-gated-reward vs step_020000000": [
+      183,
+      81
+    ],
+    "v2-control-gated-reward vs step_030000000": [
+      122,
+      94
+    ],
+    "v2-control-gated-reward vs chase": [
+      131,
+      1059
+    ],
+    "v2-control-gated-reward vs random": [
+      184,
+      39
+    ],
+    "step_010000000 vs step_020000000": [
+      16,
+      15
+    ],
+    "step_010000000 vs step_030000000": [
+      27,
+      142
+    ],
+    "step_010000000 vs chase": [
+      25,
+      1267
+    ],
+    "step_010000000 vs random": [
+      16,
+      18
+    ],
+    "step_020000000 vs step_030000000": [
+      42,
+      106
+    ],
+    "step_020000000 vs chase": [
+      38,
+      1191
+    ],
+    "step_020000000 vs random": [
+      31,
+      10
+    ],
+    "step_030000000 vs chase": [
+      39,
+      1248
+    ],
+    "step_030000000 vs random": [
+      123,
+      26
+    ],
+    "chase vs random": [
+      1312,
+      18
+    ]
+  },
+  "envs": 192,
+  "steps": 600
+}
