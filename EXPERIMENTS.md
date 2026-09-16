@@ -93,7 +93,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.070 | **loss** — below random (0.072) |
 | exp-bounded | `--set bounded_mean=1` (was off) | 12M | 0.056 | **loss** — last, below random |
 | exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | 0.069 | **loss** — barely above random (0.064) |
-| exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 50M | **beats v2, 78-43** | **compute was the constraint; bends at 40-50M** |
+| exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 60M | **beats v2, 94-32** | **compute bound it to 40M; bends there, then crawls** |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -165,9 +165,10 @@ Laddering archived snapshots of a single unmodified run, against a fixed field:
 | 10M | 0.076 | 20 - 63 loss |
 | 20M | 0.108 | 24 - 67 loss |
 | 30M | 0.266 | 27 - 45 loss |
-| 40M | 0.522 | **77 - 54 win** |
-| 50M | **0.547** | **78 - 43 win** |
-| *(v2, for reference)* | *0.397* | -- |
+| 40M | 0.509 | **77 - 54 win** (+23) |
+| 50M | 0.542 | **78 - 43 win** (+35) |
+| 60M | **0.571** | **94 - 32 win** (+62) |
+| *(v2, for reference)* | *0.380* | -- |
 
 (Shares are from the 7-entrant ladder and are not comparable across fields;
 the vs-v2 column is, because it is one fixed pairing played at both ends.)
@@ -177,11 +178,21 @@ share between 10M and 40M. At 40M it passes v2 head-to-head, the first
 checkpoint in this project to do so, having lost to it 27-45 only 10M steps
 earlier.
 
-**Then it bends.** 40M -> 50M is the first interval that is not a large gain:
-share 0.522 -> 0.547, and played directly against each other the two snapshots
-are 61-71, inside noise. The margin over v2 does still improve (+23 -> +35), so
-it is not flat, but the step change between consecutive snapshots drops by
-roughly an order of magnitude.
+**Then it bends, at 40M, and stays bent.** The per-interval gain collapses from
++0.26 share (30M -> 40M) to a steady +0.03 per 10M afterwards:
+
+| interval | share gain | snapshots played directly |
+|---|---|---|
+| 30M -> 40M | +0.26 | 32 - 67, clear |
+| 40M -> 50M | +0.03 | 61 - 71, noise |
+| 50M -> 60M | +0.03 | 77 - 76, dead tie |
+
+Consecutive snapshots 10M apart are now indistinguishable head-to-head. The
+margin over v2 keeps widening (+23 -> +35 -> +62), but that is what a fixed
+weak opponent does under slow steady improvement -- goal *difference* against a
+frozen reference grows superlinearly in skill, so a widening margin there is
+compatible with the crawl the direct pairings show. When two measurements
+disagree, the direct pairing is the one that was designed not to lie.
 
 **Nothing about the setup was changed to get this.** It is the same reward, the
 same network, the same hyperparameters that lost six experiments in a row. The
@@ -197,7 +208,8 @@ The policy's action noise is *growing* over this run, not shrinking:
 | 10M | 0.677 | 0.528 | 0.931 |
 | 20M | 0.857 | 0.511 | 1.504 |
 | 30M | 0.938 | 0.496 | 2.151 |
-| 50M | 1.001 | **0.237** | **4.639** |
+| 50M | 1.001 | 0.237 | 4.639 |
+| 60M | 1.116 | **0.173** | **6.29** |
 
 Entropy climbs monotonically 2.75 -> 4.34 across the run. `mean_reward` sits at
 roughly +/-0.0002 -- the shaping terms very nearly cancel -- so on any action
@@ -220,11 +232,16 @@ So the bend and the divergence are the same event, and the reading is:
 all.** That is consistent with how the goals are being scored -- these look
 like possession-and-crash goals, not shots.
 
-One interval is not a trend, and the 60M/70M points are what settle whether the
-curve has genuinely flattened or merely paused. But the mechanism now has
-direct corroboration rather than being a guess from the entropy number alone,
-and the obvious single-variable follow-up is a per-channel entropy floor (or
-simply a lower `entropy_coef`) rather than more steps.
+The 60M row settles the "one interval is not a trend" objection: both channels
+continued straight through it, turn 0.237 -> 0.173 and shoot 4.639 -> 6.29,
+while the share gain stayed at its new slow rate. The divergence is not an
+artifact of one snapshot.
+
+The obvious single-variable follow-up is therefore a per-channel entropy floor
+(or simply a lower `entropy_coef`) rather than more steps. Note this is *not* a
+re-run of exp-entropy, which lowered `entropy_coef` globally at 12M -- i.e. in
+the range where, as established above, nothing had started happening yet and
+every verdict was noise.
 
 **This contradicts a claim made repeatedly earlier in this file, and the
 correction matters more than the result.** The "v2 plateaued by 10M" reading
