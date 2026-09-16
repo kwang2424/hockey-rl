@@ -93,7 +93,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-ent001 | `--set entropy_coef=0.001` (was 0.004) | 12M | 0.070 | **loss** — below random (0.072) |
 | exp-bounded | `--set bounded_mean=1` (was off) | 12M | 0.056 | **loss** — last, below random |
 | exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | 0.069 | **loss** — barely above random (0.064) |
-| exp-100m | *(no change)* — 100M steps, snapshots every 10M | 30M+ | climbing | **compute was a real constraint** |
+| exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 40M | **beats v2 head-to-head, 77-54** | **compute was the constraint** |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -160,15 +160,49 @@ rather than cannibalising each other.
 
 Laddering archived snapshots of a single unmodified run, against a fixed field:
 
-| snapshot | goal share |
-|---|---|
-| 10M | 0.079 |
-| 20M | 0.121 |
-| 30M | **0.256** |
-| *(v2, for reference)* | *0.372* |
+| snapshot | goal share | head-to-head vs v2 |
+|---|---|---|
+| 10M | 0.076 | 20 - 63 loss |
+| 20M | 0.108 | 24 - 67 loss |
+| 30M | 0.266 | 27 - 45 loss |
+| 40M | **0.531** | **77 - 54 win** |
+| *(v2, for reference)* | *0.403* | -- |
 
-It is climbing, monotonically and steeply -- a 3.2x improvement between 10M and
-30M with no sign of flattening.
+(Shares are from the 7-entrant ladder and are not comparable across fields;
+the vs-v2 column is, because it is one fixed pairing played at both ends.)
+
+It is climbing, monotonically and steeply, and it is *accelerating* rather than
+flattening -- a 7x improvement in goal share between 10M and 40M. At 40M it
+passes v2 head-to-head, the first checkpoint in this project to do so, having
+lost to it 27-45 only 10M steps earlier.
+
+**Nothing about the setup was changed to get this.** It is the same reward, the
+same network, the same hyperparameters that lost six experiments in a row. The
+only input was steps.
+
+#### A caveat carried forward
+
+The policy's action noise is *growing* over this run, not shrinking:
+
+| | std(fwd) | std(turn) | std(shoot) |
+|---|---|---|---|
+| v2 | 0.648 | 0.478 | 1.129 |
+| 10M | 0.677 | 0.528 | 0.931 |
+| 20M | 0.857 | 0.511 | 1.504 |
+| 30M | 0.938 | 0.496 | 2.151 |
+
+Entropy climbs monotonically 2.75 -> 4.29 across the run. `mean_reward` sits at
+roughly +/-0.0002 -- the shaping terms very nearly cancel -- so on any action
+channel where the task gradient is weak, the entropy bonus is the only force
+acting and it inflates sigma unopposed. At sigma = 2.15 against a [-1, 1] clip
+the shot trigger is close to a coin flip. The turn channel is the one dimension
+holding its shape, which is consistent with positioning being what wins these
+games at this skill level.
+
+This is a plausible ceiling ahead: if sigma keeps inflating, the climb should
+bend over even while compute keeps going in. It was deliberately left alone --
+this is a single-variable run and the variable is compute. The 50M/60M ladder
+points are what distinguish "compute-limited" from "entropy-bonus-limited".
 
 **This contradicts a claim made repeatedly earlier in this file, and the
 correction matters more than the result.** The "v2 plateaued by 10M" reading
