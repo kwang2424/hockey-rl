@@ -309,6 +309,14 @@ concluding the setup is at fault.
 - The container here restarts roughly hourly and kills training. `--resume`
   continues from `<out>/latest.pt` with optimizer state and opponent pool
   intact; checkpoints are written every update.
+- **Do not run two training processes on this box.** Solo, an update takes
+  1.3s (about 19k steps/sec). Two concurrent processes take 44s per update
+  *each* -- a 30x collapse, not the 2x that sharing four cores would predict,
+  and it does not depend on `OMP_NUM_THREADS`. It has the shape of OpenMP
+  spin-wait barriers under thread oversubscription. A two-arm experiment
+  planned as 90 minutes concurrent would in fact have taken about 25 hours;
+  run the arms sequentially instead, which costs exactly the sum and nothing
+  more.
 - Single-seed results at 1M steps are noise. A reward change once looked like
   a 3.3x goal-rate win on seed 0 and vanished across three seeds.
 - Short runs cannot test slow bugs. The mean-saturation failure took tens of
