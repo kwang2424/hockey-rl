@@ -10,15 +10,19 @@ playing something exactly as good as itself.
 """
 
 import argparse
+import contextlib
 import csv
 import json
 import os
+import re
 import time
 
 import numpy as np
+import torch
 
 from hockey.config import DEFAULT
 from hockey.bots import ChaseBot, RandomBot
+from hockey.rating import rating, share_logit
 from hockey.rollout import play
 from rl.ppo import PPOTrainer, PPOConfig
 
@@ -76,20 +80,99 @@ def apply_overrides(pairs):
 BASE_FIELDS = ["update", "step", "elapsed_s", "sps", "ep_count", "goals_per_ep",
                "mean_reward", "pool_frac", "curriculum", "nonfinite_skips",
                "pg_loss", "v_loss", "entropy", "approx_kl", "grad_norm"]
-EVAL_FIELDS = [f"vs_{opp}_{m}" for opp in ("chase", "random")
-               for m in ("goal_diff_per_min", "goals_for", "goals_against", "possession")]
+DEFAULT_ANCHORS = ("chase", "random",
+                   "checkpoints/v2-control-gated-reward.pt",
+                   "checkpoints/v6-100m-compute.pt")
+
+EVAL_METRICS = ("goal_diff_per_min", "goals_for", "goals_against", "possession")
 
 
-def evaluate(trainer, steps, envs, seed=12345):
-    """Objective progress check: play the learner against fixed baselines."""
+def anchor_key(spec):
+    """A CSV-safe column prefix for an anchor spec."""
+    from hockey.ladder import _name
+    return re.sub(r"[^0-9a-zA-Z]+", "_", _name(spec)).strip("_")
+
+
+def eval_fields(anchors):
+    """The eval half of the CSV schema, declared up front.
+
+    Derived from the resolved anchor list before the loop starts, never from
+    whichever row happens to be written first -- that mistake silently dropped
+    every eval column of a whole run once already.
+    """
+    return ([f"vs_{anchor_key(a)}_{m}" for a in anchors for m in EVAL_METRICS]
+            + ["eval_rating"])
+
+
+EVAL_FIELDS = eval_fields(DEFAULT_ANCHORS)
+
+
+@contextlib.contextmanager
+def frozen_rng():
+    """Run a block without advancing any global RNG stream.
+
+    Measurement must not perturb the thing being measured. Building an anchor
+    policy constructs an ActorCritic, whose layer initialisation draws from the
+    global torch RNG, so merely *adding an anchor* shifted the training action
+    stream and made two runs of the same seed diverge. Training is otherwise
+    bit-reproducible, and that is worth keeping: it is what makes a one-change
+    experiment a controlled comparison rather than a difference of seeds.
+    """
+    torch_state = torch.get_rng_state()
+    numpy_state = np.random.get_state()
+    try:
+        yield
+    finally:
+        torch.set_rng_state(torch_state)
+        np.random.set_state(numpy_state)
+
+
+def resolve_anchors(specs, seed=12345):
+    """Build the fixed opponents the learner is scored against.
+
+    Checkpoint anchors are committed files, so a rating is comparable across
+    runs and across machines. A missing one is a hard error rather than a
+    silently shorter anchor list, because a rating computed over a different
+    anchor set is not the same number.
+    """
+    from hockey.watch import resolve_policy
+    out = []
+    for spec in specs:  # inside frozen_rng() at the call site
+
+        if spec == "chase":
+            pol = ChaseBot()
+        elif spec == "random":
+            pol = RandomBot(seed=seed)
+        else:
+            if not os.path.exists(spec):
+                raise SystemExit(f"--eval-anchors: no such checkpoint {spec!r}")
+            pol, _ = resolve_policy(spec)
+        out.append((anchor_key(spec), pol))
+    return out
+
+
+def evaluate(trainer, steps, envs, anchors, seed=12345):
+    """Objective progress check: play the learner against fixed anchors.
+
+    Reports each anchor's raw counts *and* a single ``eval_rating``, the mean
+    log-odds of goal share across anchors. The rating is what selects
+    ``best.pt``; see hockey/rating.py for why goal difference per minute was
+    not fit for that job.
+
+    One end only, unlike the ladder. Any side bias is then a constant offset,
+    which a metric used for ranking snapshots of one run can absorb, and it
+    halves the cost of an eval.
+    """
     pol = trainer.policy()
-    out = {}
-    for name, opp in (("chase", ChaseBot()), ("random", RandomBot(seed=seed))):
+    out, counts = {}, {}
+    for key, opp in anchors:
         s, _ = play(pol, opp, num_envs=envs, steps=steps, seed=seed)
-        out[f"vs_{name}_goal_diff_per_min"] = round(s["goal_diff_per_min"], 3)
-        out[f"vs_{name}_goals_for"] = s["goals_a"]
-        out[f"vs_{name}_goals_against"] = s["goals_b"]
-        out[f"vs_{name}_possession"] = round(s["possession_a_frac"], 3)
+        out[f"vs_{key}_goal_diff_per_min"] = round(s["goal_diff_per_min"], 3)
+        out[f"vs_{key}_goals_for"] = s["goals_a"]
+        out[f"vs_{key}_goals_against"] = s["goals_b"]
+        out[f"vs_{key}_possession"] = round(s["possession_a_frac"], 3)
+        counts[key] = (s["goals_a"], s["goals_b"])
+    out["eval_rating"] = round(rating(counts), 4)
     return out
 
 
@@ -109,6 +192,11 @@ def main():
     ap.add_argument("--eval-every", type=int, default=15)
     ap.add_argument("--eval-steps", type=int, default=300)
     ap.add_argument("--eval-envs", type=int, default=48)
+    ap.add_argument("--eval-anchors", type=str, default=",".join(DEFAULT_ANCHORS),
+                    help="comma-separated fixed opponents the learner is scored "
+                         "against; best.pt is the highest mean log-odds of goal "
+                         "share over this set. Use anchors that span the skill "
+                         "range -- a single one only resolves near its own.")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=str, default="runs/v0")
     ap.add_argument("--device", type=str, default="cpu")
@@ -141,8 +229,16 @@ def main():
     for k, v in ppo_overrides.items():
         setattr(p, k, v)
 
+    anchor_specs = [a.strip() for a in args.eval_anchors.split(",") if a.strip()]
+    if not anchor_specs:
+        raise SystemExit("--eval-anchors: need at least one anchor")
+    EVAL_FIELDS[:] = eval_fields(anchor_specs)
+
     os.makedirs(args.out, exist_ok=True)
     trainer = PPOTrainer(p, env_cfg)
+    with frozen_rng():
+        anchors = resolve_anchors(anchor_specs, seed=12345)
+    print(f"[train] anchors: {', '.join(k for k, _ in anchors)}", flush=True)
     if args.set:
         print(f"[train] overrides: {', '.join(args.set)}", flush=True)
 
@@ -150,11 +246,18 @@ def main():
     # roughly hourly, which killed a 30M-step run at 3.7M with no error. A run
     # long enough to be interesting is longer than the machine stays up.
     start_update = 1
+    best = -1e9
     resume_path = os.path.join(args.out, "latest.pt")
     if args.resume and os.path.exists(resume_path):
         start_update = trainer.load_for_resume(resume_path)
+        # Carry the incumbent rating across the resume. Without this `best`
+        # restarts at -inf and the first eval of every new process overwrites
+        # best.pt regardless of quality -- over the ~10 container restarts of a
+        # 100M-step run that alone reduces "best" to "whatever was current just
+        # after the last restart".
+        best = getattr(trainer, "best_rating", best)
         print(f"[train] resumed from {resume_path} at update {start_update-1}, "
-              f"step {trainer.global_step:,}", flush=True)
+              f"step {trainer.global_step:,}, best rating {best:+.4f}", flush=True)
 
     with open(os.path.join(args.out, "config.json"), "w") as f:
         json.dump({"ppo": p.__dict__, "env": env_cfg.to_dict(),
@@ -176,7 +279,6 @@ def main():
         last_archived = max(done) if done else 0
     per_update = p.num_envs * p.rollout_steps
     n_updates = max(1, args.total_steps // per_update)
-    best = -1e9
 
     print(f"[train] {n_updates} updates x {per_update:,} steps = {n_updates*per_update:,} total")
     for update in range(start_update, n_updates + 1):
@@ -212,19 +314,22 @@ def main():
                 print(f"[train] archived {snap}", flush=True)
 
         if update % p.eval_every == 0 or update == n_updates:
-            row.update(evaluate(trainer, p.eval_steps, p.eval_envs))
-            score = row["vs_chase_goal_diff_per_min"]
+            with frozen_rng():
+                row.update(evaluate(trainer, p.eval_steps, p.eval_envs, anchors))
+            score = row["eval_rating"]
             if score > best:
                 best = score
+                trainer.best_rating = best
                 trainer.save(os.path.join(args.out, "best.pt"))
             trainer.save(os.path.join(args.out, "latest.pt"))
             print(f"[{update:4d}/{n_updates}] step={trainer.global_step:>9,} "
                   f"sps={row['sps']:>6,} ent={row.get('entropy',0):.2f} "
-                  f"vs_chase={row['vs_chase_goal_diff_per_min']:+.2f}/min "
-                  f"({row['vs_chase_goals_for']}-{row['vs_chase_goals_against']}) "
-                  f"vs_random={row['vs_random_goal_diff_per_min']:+.2f}/min "
-                  f"poss={row['vs_chase_possession']:.2f} "
-                  f"curr={row['curriculum']:.2f}", flush=True)
+                  f"rating={row['eval_rating']:+.3f}"
+                  f"{' *' if score >= best else '  '} "
+                  + " ".join(
+                      f"{k}={row[f'vs_{k}_goals_for']}-{row[f'vs_{k}_goals_against']}"
+                      for k, _ in anchors)
+                  + f" curr={row['curriculum']:.2f}", flush=True)
 
         if writer is None:
             # Fieldnames come from the declared schema, never from whichever
@@ -253,7 +358,7 @@ def main():
     trainer.save(os.path.join(args.out, "final.pt"))
     if csv_file:
         csv_file.close()
-    print(f"[train] done in {time.time()-t0:.0f}s -> {args.out}/  (best vs_chase {best:+.2f}/min)")
+    print(f"[train] done in {time.time()-t0:.0f}s -> {args.out}/  (best rating {best:+.4f})")
 
 
 if __name__ == "__main__":

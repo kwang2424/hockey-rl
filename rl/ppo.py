@@ -390,6 +390,9 @@ class PPOTrainer:
             "optimizer": self.opt.state_dict(),
             "pool": self.pool,
             "rng": self.rng.bit_generator.state,
+            # So a resume does not forget which snapshot was best and
+            # re-baseline best.pt from the first eval of the new process.
+            "best_rating": getattr(self, "best_rating", None),
         }, path)
         return path
 
@@ -404,6 +407,8 @@ class PPOTrainer:
             self.opt.load_state_dict(ck["optimizer"])
         if "rng" in ck:
             self.rng.bit_generator.state = ck["rng"]
+        if ck.get("best_rating") is not None:
+            self.best_rating = float(ck["best_rating"])
         for sd in ck.get("pool", []):
             net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
                               self.p.bounded_mean, self.p.max_log_std)
