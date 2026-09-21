@@ -46,14 +46,46 @@ def _name(spec):
     return stem
 
 
+def _run_of(spec):
+    """The run directory a checkpoint belongs to, or "" for a bare baseline.
+
+    Archive snapshots are named after their step count, so the same milestone
+    from two different runs -- exactly what a two-arm experiment produces --
+    collides. `<run>/archive/step_040000000.pt` reports `<run>`.
+    """
+    d = os.path.dirname(spec)
+    if os.path.basename(d) == "archive":
+        d = os.path.dirname(d)
+    return os.path.basename(d)
+
+
+def unique_names(specs):
+    """Labels that are short when they can be and distinct always.
+
+    A colliding label used to silently drop an entrant: `policies` is keyed by
+    name, so laddering two arms of one experiment quietly compared one arm
+    against itself. Disambiguate by run directory, and only where needed, so
+    single-run ladders keep their short labels.
+    """
+    base = [_name(s) for s in specs]
+    clashing = {n for n in base if base.count(n) > 1}
+    out = []
+    for spec, name in zip(specs, base):
+        run = _run_of(spec) if name in clashing else ""
+        out.append(f"{run}/{name}" if run else name)
+    if len(set(out)) != len(out):
+        raise SystemExit(f"ladder: entrants have duplicate labels: {sorted(out)}")
+    return out
+
+
 def run_ladder(specs, envs=96, steps=400, seed=0, verbose=True):
     """Play every pair both ends. Returns per-entrant records and the table."""
     from .watch import resolve_policy
 
     policies = {}
-    for s in specs:
-        pol, _ = resolve_policy(s)
-        policies[_name(s)] = pol
+    for spec, name in zip(specs, unique_names(specs)):
+        pol, _ = resolve_policy(spec)
+        policies[name] = pol
     names = list(policies)
 
     gf = {n: 0 for n in names}
@@ -109,7 +141,7 @@ def main():
     if len(specs) < 2:
         raise SystemExit("need at least two entrants")
 
-    print(f"ladder: {len(specs)} entrants, {args.envs} envs x {args.steps} steps per side\n")
+    print(f"ladder: {len(set(unique_names(specs)))} entrants, {args.envs} envs x {args.steps} steps per side\n")
     table, pairs = run_ladder(specs, args.envs, args.steps, args.seed)
 
     print(f"\n{'rank':<5} {'entrant':<30} {'GF':>5} {'GA':>5} {'diff':>6} {'share':>7}")
