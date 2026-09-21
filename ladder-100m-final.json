@@ -1,0 +1,411 @@
+{
+  "table": [
+    {
+      "name": "chase",
+      "goals_for": 4025,
+      "goals_against": 452,
+      "goal_share": 0.899,
+      "goal_diff": 3573
+    },
+    {
+      "name": "step_070000000",
+      "goals_for": 1141,
+      "goals_against": 830,
+      "goal_share": 0.5789,
+      "goal_diff": 311
+    },
+    {
+      "name": "step_090000000",
+      "goals_for": 1186,
+      "goals_against": 881,
+      "goal_share": 0.5738,
+      "goal_diff": 305
+    },
+    {
+      "name": "exp-100m/final",
+      "goals_for": 1189,
+      "goals_against": 938,
+      "goal_share": 0.559,
+      "goal_diff": 251
+    },
+    {
+      "name": "step_080000000",
+      "goals_for": 1122,
+      "goals_against": 896,
+      "goal_share": 0.556,
+      "goal_diff": 226
+    },
+    {
+      "name": "step_060000000",
+      "goals_for": 1041,
+      "goals_against": 924,
+      "goal_share": 0.5298,
+      "goal_diff": 117
+    },
+    {
+      "name": "step_050000000",
+      "goals_for": 983,
+      "goals_against": 938,
+      "goal_share": 0.5117,
+      "goal_diff": 45
+    },
+    {
+      "name": "step_040000000",
+      "goals_for": 853,
+      "goals_against": 968,
+      "goal_share": 0.4684,
+      "goal_diff": -115
+    },
+    {
+      "name": "v2-control-gated-reward",
+      "goals_for": 572,
+      "goals_against": 1106,
+      "goal_share": 0.3409,
+      "goal_diff": -534
+    },
+    {
+      "name": "step_030000000",
+      "goals_for": 333,
+      "goals_against": 1063,
+      "goal_share": 0.2385,
+      "goal_diff": -730
+    },
+    {
+      "name": "step_020000000",
+      "goals_for": 252,
+      "goals_against": 1326,
+      "goal_share": 0.1597,
+      "goal_diff": -1074
+    },
+    {
+      "name": "step_010000000",
+      "goals_for": 165,
+      "goals_against": 1374,
+      "goal_share": 0.1072,
+      "goal_diff": -1209
+    },
+    {
+      "name": "random",
+      "goals_for": 137,
+      "goals_against": 1303,
+      "goal_share": 0.0951,
+      "goal_diff": -1166
+    }
+  ],
+  "pairs": {
+    "chase vs random": [
+      391,
+      6
+    ],
+    "chase vs v2-control-gated-reward": [
+      326,
+      38
+    ],
+    "chase vs step_010000000": [
+      389,
+      10
+    ],
+    "chase vs step_020000000": [
+      365,
+      8
+    ],
+    "chase vs step_030000000": [
+      378,
+      8
+    ],
+    "chase vs step_040000000": [
+      326,
+      32
+    ],
+    "chase vs step_050000000": [
+      325,
+      29
+    ],
+    "chase vs step_060000000": [
+      319,
+      49
+    ],
+    "chase vs step_070000000": [
+      277,
+      77
+    ],
+    "chase vs step_080000000": [
+      314,
+      62
+    ],
+    "chase vs step_090000000": [
+      286,
+      75
+    ],
+    "chase vs exp-100m/final": [
+      329,
+      58
+    ],
+    "random vs v2-control-gated-reward": [
+      11,
+      61
+    ],
+    "random vs step_010000000": [
+      9,
+      3
+    ],
+    "random vs step_020000000": [
+      7,
+      14
+    ],
+    "random vs step_030000000": [
+      6,
+      36
+    ],
+    "random vs step_040000000": [
+      8,
+      110
+    ],
+    "random vs step_050000000": [
+      11,
+      119
+    ],
+    "random vs step_060000000": [
+      12,
+      113
+    ],
+    "random vs step_070000000": [
+      13,
+      136
+    ],
+    "random vs step_080000000": [
+      14,
+      110
+    ],
+    "random vs step_090000000": [
+      22,
+      95
+    ],
+    "random vs exp-100m/final": [
+      18,
+      115
+    ],
+    "v2-control-gated-reward vs step_010000000": [
+      63,
+      20
+    ],
+    "v2-control-gated-reward vs step_020000000": [
+      67,
+      24
+    ],
+    "v2-control-gated-reward vs step_030000000": [
+      45,
+      27
+    ],
+    "v2-control-gated-reward vs step_040000000": [
+      54,
+      77
+    ],
+    "v2-control-gated-reward vs step_050000000": [
+      43,
+      78
+    ],
+    "v2-control-gated-reward vs step_060000000": [
+      32,
+      94
+    ],
+    "v2-control-gated-reward vs step_070000000": [
+      38,
+      98
+    ],
+    "v2-control-gated-reward vs step_080000000": [
+      37,
+      111
+    ],
+    "v2-control-gated-reward vs step_090000000": [
+      45,
+      116
+    ],
+    "v2-control-gated-reward vs exp-100m/final": [
+      49,
+      124
+    ],
+    "step_010000000 vs step_020000000": [
+      4,
+      5
+    ],
+    "step_010000000 vs step_030000000": [
+      4,
+      40
+    ],
+    "step_010000000 vs step_040000000": [
+      11,
+      126
+    ],
+    "step_010000000 vs step_050000000": [
+      18,
+      117
+    ],
+    "step_010000000 vs step_060000000": [
+      19,
+      131
+    ],
+    "step_010000000 vs step_070000000": [
+      18,
+      104
+    ],
+    "step_010000000 vs step_080000000": [
+      22,
+      115
+    ],
+    "step_010000000 vs step_090000000": [
+      20,
+      140
+    ],
+    "step_010000000 vs exp-100m/final": [
+      16,
+      135
+    ],
+    "step_020000000 vs step_030000000": [
+      6,
+      40
+    ],
+    "step_020000000 vs step_040000000": [
+      12,
+      89
+    ],
+    "step_020000000 vs step_050000000": [
+      27,
+      109
+    ],
+    "step_020000000 vs step_060000000": [
+      31,
+      126
+    ],
+    "step_020000000 vs step_070000000": [
+      40,
+      133
+    ],
+    "step_020000000 vs step_080000000": [
+      26,
+      110
+    ],
+    "step_020000000 vs step_090000000": [
+      27,
+      135
+    ],
+    "step_020000000 vs exp-100m/final": [
+      32,
+      141
+    ],
+    "step_030000000 vs step_040000000": [
+      32,
+      67
+    ],
+    "step_030000000 vs step_050000000": [
+      23,
+      91
+    ],
+    "step_030000000 vs step_060000000": [
+      18,
+      80
+    ],
+    "step_030000000 vs step_070000000": [
+      27,
+      90
+    ],
+    "step_030000000 vs step_080000000": [
+      23,
+      92
+    ],
+    "step_030000000 vs step_090000000": [
+      35,
+      99
+    ],
+    "step_030000000 vs exp-100m/final": [
+      24,
+      105
+    ],
+    "step_040000000 vs step_050000000": [
+      61,
+      71
+    ],
+    "step_040000000 vs step_060000000": [
+      55,
+      81
+    ],
+    "step_040000000 vs step_070000000": [
+      51,
+      95
+    ],
+    "step_040000000 vs step_080000000": [
+      63,
+      92
+    ],
+    "step_040000000 vs step_090000000": [
+      57,
+      95
+    ],
+    "step_040000000 vs exp-100m/final": [
+      65,
+      91
+    ],
+    "step_050000000 vs step_060000000": [
+      77,
+      76
+    ],
+    "step_050000000 vs step_070000000": [
+      63,
+      95
+    ],
+    "step_050000000 vs step_080000000": [
+      81,
+      87
+    ],
+    "step_050000000 vs step_090000000": [
+      68,
+      92
+    ],
+    "step_050000000 vs exp-100m/final": [
+      80,
+      80
+    ],
+    "step_060000000 vs step_070000000": [
+      69,
+      79
+    ],
+    "step_060000000 vs step_080000000": [
+      76,
+      85
+    ],
+    "step_060000000 vs step_090000000": [
+      71,
+      100
+    ],
+    "step_060000000 vs exp-100m/final": [
+      75,
+      97
+    ],
+    "step_070000000 vs step_080000000": [
+      80,
+      77
+    ],
+    "step_070000000 vs step_090000000": [
+      74,
+      80
+    ],
+    "step_070000000 vs exp-100m/final": [
+      80,
+      77
+    ],
+    "step_080000000 vs step_090000000": [
+      88,
+      82
+    ],
+    "step_080000000 vs exp-100m/final": [
+      93,
+      78
+    ],
+    "step_090000000 vs exp-100m/final": [
+      77,
+      88
+    ]
+  },
+  "envs": 96,
+  "steps": 400
+}

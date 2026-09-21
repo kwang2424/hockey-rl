@@ -1,0 +1,176 @@
+{
+  "table": [
+    {
+      "name": "chase",
+      "goals_for": 2500,
+      "goals_against": 131,
+      "goal_share": 0.9502,
+      "goal_diff": 2369
+    },
+    {
+      "name": "step_050000000",
+      "goals_for": 614,
+      "goals_against": 508,
+      "goal_share": 0.5472,
+      "goal_diff": 106
+    },
+    {
+      "name": "step_040000000",
+      "goals_for": 562,
+      "goals_against": 514,
+      "goal_share": 0.5223,
+      "goal_diff": 48
+    },
+    {
+      "name": "v2-control-gated-reward",
+      "goals_for": 371,
+      "goals_against": 563,
+      "goal_share": 0.3972,
+      "goal_diff": -192
+    },
+    {
+      "name": "step_030000000",
+      "goals_for": 206,
+      "goals_against": 597,
+      "goal_share": 0.2565,
+      "goal_diff": -391
+    },
+    {
+      "name": "step_020000000",
+      "goals_for": 96,
+      "goals_against": 681,
+      "goal_share": 0.1236,
+      "goal_diff": -585
+    },
+    {
+      "name": "step_010000000",
+      "goals_for": 70,
+      "goals_against": 749,
+      "goal_share": 0.0855,
+      "goal_diff": -679
+    },
+    {
+      "name": "random",
+      "goals_for": 58,
+      "goals_against": 734,
+      "goal_share": 0.0732,
+      "goal_diff": -676
+    }
+  ],
+  "pairs": {
+    "chase vs random": [
+      391,
+      6
+    ],
+    "chase vs v2-control-gated-reward": [
+      326,
+      38
+    ],
+    "chase vs step_010000000": [
+      389,
+      10
+    ],
+    "chase vs step_020000000": [
+      365,
+      8
+    ],
+    "chase vs step_030000000": [
+      378,
+      8
+    ],
+    "chase vs step_040000000": [
+      326,
+      32
+    ],
+    "chase vs step_050000000": [
+      325,
+      29
+    ],
+    "random vs v2-control-gated-reward": [
+      11,
+      61
+    ],
+    "random vs step_010000000": [
+      9,
+      3
+    ],
+    "random vs step_020000000": [
+      7,
+      14
+    ],
+    "random vs step_030000000": [
+      6,
+      36
+    ],
+    "random vs step_040000000": [
+      8,
+      110
+    ],
+    "random vs step_050000000": [
+      11,
+      119
+    ],
+    "v2-control-gated-reward vs step_010000000": [
+      63,
+      20
+    ],
+    "v2-control-gated-reward vs step_020000000": [
+      67,
+      24
+    ],
+    "v2-control-gated-reward vs step_030000000": [
+      45,
+      27
+    ],
+    "v2-control-gated-reward vs step_040000000": [
+      54,
+      77
+    ],
+    "v2-control-gated-reward vs step_050000000": [
+      43,
+      78
+    ],
+    "step_010000000 vs step_020000000": [
+      4,
+      5
+    ],
+    "step_010000000 vs step_030000000": [
+      4,
+      40
+    ],
+    "step_010000000 vs step_040000000": [
+      11,
+      126
+    ],
+    "step_010000000 vs step_050000000": [
+      18,
+      117
+    ],
+    "step_020000000 vs step_030000000": [
+      6,
+      40
+    ],
+    "step_020000000 vs step_040000000": [
+      12,
+      89
+    ],
+    "step_020000000 vs step_050000000": [
+      27,
+      109
+    ],
+    "step_030000000 vs step_040000000": [
+      32,
+      67
+    ],
+    "step_030000000 vs step_050000000": [
+      23,
+      91
+    ],
+    "step_040000000 vs step_050000000": [
+      61,
+      71
+    ]
+  },
+  "envs": 96,
+  "steps": 400
+}

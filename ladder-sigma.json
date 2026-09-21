@@ -1,0 +1,411 @@
+{
+  "table": [
+    {
+      "name": "v6-100m-compute",
+      "goals_for": 1173,
+      "goals_against": 451,
+      "goal_share": 0.7223,
+      "goal_diff": 722
+    },
+    {
+      "name": "exp-sigma-cap/step_040000000",
+      "goals_for": 775,
+      "goals_against": 514,
+      "goal_share": 0.6012,
+      "goal_diff": 261
+    },
+    {
+      "name": "exp-sigma-cap/final",
+      "goals_for": 854,
+      "goals_against": 588,
+      "goal_share": 0.5922,
+      "goal_diff": 266
+    },
+    {
+      "name": "exp-sigma-ctl/step_030000000",
+      "goals_for": 638,
+      "goals_against": 452,
+      "goal_share": 0.5853,
+      "goal_diff": 186
+    },
+    {
+      "name": "v2-control-gated-reward",
+      "goals_for": 685,
+      "goals_against": 549,
+      "goal_share": 0.5551,
+      "goal_diff": 136
+    },
+    {
+      "name": "exp-sigma-ctl/final",
+      "goals_for": 548,
+      "goals_against": 490,
+      "goal_share": 0.5279,
+      "goal_diff": 58
+    },
+    {
+      "name": "exp-sigma-cap/step_020000000",
+      "goals_for": 483,
+      "goals_against": 449,
+      "goal_share": 0.5182,
+      "goal_diff": 34
+    },
+    {
+      "name": "exp-sigma-cap/step_030000000",
+      "goals_for": 532,
+      "goals_against": 504,
+      "goal_share": 0.5135,
+      "goal_diff": 28
+    },
+    {
+      "name": "exp-sigma-ctl/step_040000000",
+      "goals_for": 391,
+      "goals_against": 564,
+      "goal_share": 0.4094,
+      "goal_diff": -173
+    },
+    {
+      "name": "exp-sigma-ctl/step_020000000",
+      "goals_for": 336,
+      "goals_against": 513,
+      "goal_share": 0.3958,
+      "goal_diff": -177
+    },
+    {
+      "name": "exp-sigma-ctl/step_010000000",
+      "goals_for": 260,
+      "goals_against": 571,
+      "goal_share": 0.3129,
+      "goal_diff": -311
+    },
+    {
+      "name": "exp-sigma-cap/step_010000000",
+      "goals_for": 194,
+      "goals_against": 722,
+      "goal_share": 0.2118,
+      "goal_diff": -528
+    },
+    {
+      "name": "random",
+      "goals_for": 103,
+      "goals_against": 605,
+      "goal_share": 0.1455,
+      "goal_diff": -502
+    }
+  ],
+  "pairs": {
+    "random vs v2-control-gated-reward": [
+      11,
+      84
+    ],
+    "random vs v6-100m-compute": [
+      13,
+      122
+    ],
+    "random vs exp-sigma-ctl/step_010000000": [
+      6,
+      27
+    ],
+    "random vs exp-sigma-ctl/step_020000000": [
+      11,
+      33
+    ],
+    "random vs exp-sigma-ctl/step_030000000": [
+      7,
+      77
+    ],
+    "random vs exp-sigma-ctl/step_040000000": [
+      4,
+      32
+    ],
+    "random vs exp-sigma-ctl/final": [
+      12,
+      38
+    ],
+    "random vs exp-sigma-cap/step_010000000": [
+      9,
+      18
+    ],
+    "random vs exp-sigma-cap/step_020000000": [
+      11,
+      41
+    ],
+    "random vs exp-sigma-cap/step_030000000": [
+      6,
+      31
+    ],
+    "random vs exp-sigma-cap/step_040000000": [
+      8,
+      53
+    ],
+    "random vs exp-sigma-cap/final": [
+      5,
+      49
+    ],
+    "v2-control-gated-reward vs v6-100m-compute": [
+      38,
+      98
+    ],
+    "v2-control-gated-reward vs exp-sigma-ctl/step_010000000": [
+      58,
+      20
+    ],
+    "v2-control-gated-reward vs exp-sigma-ctl/step_020000000": [
+      52,
+      33
+    ],
+    "v2-control-gated-reward vs exp-sigma-ctl/step_030000000": [
+      31,
+      47
+    ],
+    "v2-control-gated-reward vs exp-sigma-ctl/step_040000000": [
+      59,
+      34
+    ],
+    "v2-control-gated-reward vs exp-sigma-ctl/final": [
+      58,
+      48
+    ],
+    "v2-control-gated-reward vs exp-sigma-cap/step_010000000": [
+      88,
+      13
+    ],
+    "v2-control-gated-reward vs exp-sigma-cap/step_020000000": [
+      32,
+      53
+    ],
+    "v2-control-gated-reward vs exp-sigma-cap/step_030000000": [
+      41,
+      53
+    ],
+    "v2-control-gated-reward vs exp-sigma-cap/step_040000000": [
+      54,
+      78
+    ],
+    "v2-control-gated-reward vs exp-sigma-cap/final": [
+      90,
+      61
+    ],
+    "v6-100m-compute vs exp-sigma-ctl/step_010000000": [
+      111,
+      20
+    ],
+    "v6-100m-compute vs exp-sigma-ctl/step_020000000": [
+      83,
+      38
+    ],
+    "v6-100m-compute vs exp-sigma-ctl/step_030000000": [
+      80,
+      46
+    ],
+    "v6-100m-compute vs exp-sigma-ctl/step_040000000": [
+      107,
+      21
+    ],
+    "v6-100m-compute vs exp-sigma-ctl/final": [
+      91,
+      42
+    ],
+    "v6-100m-compute vs exp-sigma-cap/step_010000000": [
+      119,
+      27
+    ],
+    "v6-100m-compute vs exp-sigma-cap/step_020000000": [
+      72,
+      21
+    ],
+    "v6-100m-compute vs exp-sigma-cap/step_030000000": [
+      90,
+      48
+    ],
+    "v6-100m-compute vs exp-sigma-cap/step_040000000": [
+      98,
+      78
+    ],
+    "v6-100m-compute vs exp-sigma-cap/final": [
+      102,
+      59
+    ],
+    "exp-sigma-ctl/step_010000000 vs exp-sigma-ctl/step_020000000": [
+      12,
+      19
+    ],
+    "exp-sigma-ctl/step_010000000 vs exp-sigma-ctl/step_030000000": [
+      20,
+      55
+    ],
+    "exp-sigma-ctl/step_010000000 vs exp-sigma-ctl/step_040000000": [
+      21,
+      25
+    ],
+    "exp-sigma-ctl/step_010000000 vs exp-sigma-ctl/final": [
+      13,
+      57
+    ],
+    "exp-sigma-ctl/step_010000000 vs exp-sigma-cap/step_010000000": [
+      40,
+      11
+    ],
+    "exp-sigma-ctl/step_010000000 vs exp-sigma-cap/step_020000000": [
+      14,
+      47
+    ],
+    "exp-sigma-ctl/step_010000000 vs exp-sigma-cap/step_030000000": [
+      27,
+      27
+    ],
+    "exp-sigma-ctl/step_010000000 vs exp-sigma-cap/step_040000000": [
+      25,
+      63
+    ],
+    "exp-sigma-ctl/step_010000000 vs exp-sigma-cap/final": [
+      21,
+      92
+    ],
+    "exp-sigma-ctl/step_020000000 vs exp-sigma-ctl/step_030000000": [
+      25,
+      33
+    ],
+    "exp-sigma-ctl/step_020000000 vs exp-sigma-ctl/step_040000000": [
+      30,
+      25
+    ],
+    "exp-sigma-ctl/step_020000000 vs exp-sigma-ctl/final": [
+      26,
+      40
+    ],
+    "exp-sigma-ctl/step_020000000 vs exp-sigma-cap/step_010000000": [
+      41,
+      15
+    ],
+    "exp-sigma-ctl/step_020000000 vs exp-sigma-cap/step_020000000": [
+      29,
+      34
+    ],
+    "exp-sigma-ctl/step_020000000 vs exp-sigma-cap/step_030000000": [
+      21,
+      48
+    ],
+    "exp-sigma-ctl/step_020000000 vs exp-sigma-cap/step_040000000": [
+      19,
+      73
+    ],
+    "exp-sigma-ctl/step_020000000 vs exp-sigma-cap/final": [
+      22,
+      87
+    ],
+    "exp-sigma-ctl/step_030000000 vs exp-sigma-ctl/step_040000000": [
+      83,
+      17
+    ],
+    "exp-sigma-ctl/step_030000000 vs exp-sigma-ctl/final": [
+      20,
+      39
+    ],
+    "exp-sigma-ctl/step_030000000 vs exp-sigma-cap/step_010000000": [
+      95,
+      8
+    ],
+    "exp-sigma-ctl/step_030000000 vs exp-sigma-cap/step_020000000": [
+      28,
+      33
+    ],
+    "exp-sigma-ctl/step_030000000 vs exp-sigma-cap/step_030000000": [
+      49,
+      44
+    ],
+    "exp-sigma-ctl/step_030000000 vs exp-sigma-cap/step_040000000": [
+      47,
+      65
+    ],
+    "exp-sigma-ctl/step_030000000 vs exp-sigma-cap/final": [
+      58,
+      83
+    ],
+    "exp-sigma-ctl/step_040000000 vs exp-sigma-ctl/final": [
+      36,
+      50
+    ],
+    "exp-sigma-ctl/step_040000000 vs exp-sigma-cap/step_010000000": [
+      31,
+      13
+    ],
+    "exp-sigma-ctl/step_040000000 vs exp-sigma-cap/step_020000000": [
+      26,
+      35
+    ],
+    "exp-sigma-ctl/step_040000000 vs exp-sigma-cap/step_030000000": [
+      42,
+      54
+    ],
+    "exp-sigma-ctl/step_040000000 vs exp-sigma-cap/step_040000000": [
+      41,
+      48
+    ],
+    "exp-sigma-ctl/step_040000000 vs exp-sigma-cap/final": [
+      61,
+      60
+    ],
+    "exp-sigma-ctl/final vs exp-sigma-cap/step_010000000": [
+      62,
+      15
+    ],
+    "exp-sigma-ctl/final vs exp-sigma-cap/step_020000000": [
+      36,
+      34
+    ],
+    "exp-sigma-ctl/final vs exp-sigma-cap/step_030000000": [
+      32,
+      51
+    ],
+    "exp-sigma-ctl/final vs exp-sigma-cap/step_040000000": [
+      35,
+      69
+    ],
+    "exp-sigma-ctl/final vs exp-sigma-cap/final": [
+      69,
+      65
+    ],
+    "exp-sigma-cap/step_010000000 vs exp-sigma-cap/step_020000000": [
+      17,
+      59
+    ],
+    "exp-sigma-cap/step_010000000 vs exp-sigma-cap/step_030000000": [
+      21,
+      54
+    ],
+    "exp-sigma-cap/step_010000000 vs exp-sigma-cap/step_040000000": [
+      22,
+      65
+    ],
+    "exp-sigma-cap/step_010000000 vs exp-sigma-cap/final": [
+      14,
+      59
+    ],
+    "exp-sigma-cap/step_020000000 vs exp-sigma-cap/step_030000000": [
+      38,
+      45
+    ],
+    "exp-sigma-cap/step_020000000 vs exp-sigma-cap/step_040000000": [
+      45,
+      68
+    ],
+    "exp-sigma-cap/step_020000000 vs exp-sigma-cap/final": [
+      43,
+      71
+    ],
+    "exp-sigma-cap/step_030000000 vs exp-sigma-cap/step_040000000": [
+      30,
+      59
+    ],
+    "exp-sigma-cap/step_030000000 vs exp-sigma-cap/final": [
+      47,
+      78
+    ],
+    "exp-sigma-cap/step_040000000 vs exp-sigma-cap/final": [
+      56,
+      90
+    ]
+  },
+  "envs": 96,
+  "steps": 400
+}

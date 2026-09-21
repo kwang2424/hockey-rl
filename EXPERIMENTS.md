@@ -94,6 +94,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-bounded | `--set bounded_mean=1` (was off) | 12M | 0.056 | **loss** — last, below random |
 | exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | 0.069 | **loss** — barely above random (0.064) |
 | exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 70M (v6) | **0.579, beats v2 98-38** | **win** -- but all of it bought between 20M and 40M |
+| exp-sigma | `--set max_log_std=0.0` (sigma <= 1, was uncapped) | 50M, 2 arms | tie at every milestone | **null** -- and the control varied more than the treatment |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -272,6 +273,70 @@ known to be all noise.
 
 `checkpoints/v6-100m-compute.pt` is the 70M snapshot, the top-ranked entrant.
 Verified after slimming: beats v2 96-45, ties its own source 82-67.
+
+### exp-sigma: capping the action noise changed nothing measurable
+
+The follow-up exp-100m pointed at: the entropy bonus was inflating sigma on
+channels with no task gradient until the shoot trigger was a coin flip, so cap
+it. `max_log_std` already existed, making this a genuine one-flag change. Two
+fresh 50M-step arms, same seed, differing only in that flag.
+
+**It did what it was designed to do.**
+
+| shoot sigma | 10M | 20M | 30M | 40M | 50M |
+|---|---|---|---|---|---|
+| control (uncapped) | 0.820 | 1.181 | 1.613 | 1.961 | 2.141 |
+| capped (sigma <= 1) | 0.809 | 1.001 | 1.001 | 1.001 | 1.001 |
+
+Pinned from 20M on, while `turn` went on sharpening freely in both arms
+(0.46 -> 0.30 control, 0.50 -> 0.32 capped). The cap bit only the channels that
+were inflating, exactly as intended.
+
+**And it bought nothing.** Same milestone, played head to head:
+
+| milestone | control - capped |
+|---|---|
+| 10M | 40 - 11 *(before the cap binds)* |
+| 20M | 29 - 34 |
+| 30M | 49 - 44 |
+| 40M | 41 - 48 |
+| 50M | 69 - 65 |
+
+Summed over every milestone where the cap is actually active: 188 - 191. Final
+ratings -0.589 and -0.608. There is no effect here to argue about.
+
+#### The control moved more than the treatment did
+
+This is the part worth keeping. `exp-sigma-ctl` is the same config and the same
+seed as `exp-100m`, on a different container. It behaved very differently:
+
+| at 40M | exp-100m | exp-sigma-ctl |
+|---|---|---|
+| vs v2, head to head | **77 - 54 win** | **34 - 59 loss** |
+| shoot sigma at 50M | 4.639 | 2.141 |
+
+So the sigma inflation that motivated this whole experiment was less than half
+as severe in the fresh control, and the skill trajectory was worse by a margin
+far larger than the treatment effect being tested. Same knobs, same seed,
+different box.
+
+Two consequences:
+
+- **This was a weaker test than intended.** The mechanism being corrected was
+  mild in this control, so the cap had little to fix. It does not rule out the
+  cap helping a run that inflates the way exp-100m did.
+- **Single-run trajectories carry less weight than this file has been giving
+  them.** The big exp-100m result -- goal share 0.107 -> 0.522 between 10M and
+  40M -- is large enough to survive this much variance. The fine structure is
+  not: the exact location of the bend, and the tidy story about `turn`
+  sharpening in the same interval as the skill jump, sit inside the noise band
+  that this comparison just measured. Treat them as one run's shape, not as
+  established mechanism.
+
+The honest next step is not another knob. It is running the *same* arm two or
+three times and measuring the spread, so that future one-change experiments
+have an error bar to be judged against. Every verdict in this file, wins and
+losses alike, was recorded without one.
 
 ### Six for six
 
