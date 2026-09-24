@@ -1,0 +1,15 @@
+4 runs, 6 pairings per milestone, 96 envs x 400 steps per side
+
+milestone           n   mean     sd    min    max  widest gap
+final.pt            6  0.706  0.305  0.222  0.960       0.960
+step_010000000.pt   6  0.714  0.235  0.500  0.951       0.951
+step_020000000.pt   6  0.766  0.128  0.581  0.930       0.930
+step_030000000.pt   6  0.740  0.202  0.373  0.940       0.940
+step_040000000.pt   6  0.704  0.309  0.198  0.966       0.966
+
+Across all milestones: 30 same-config pairings
+  goal share      mean 0.726  sd 0.229
+  5-95 percentile [0.290, 0.956]
+  widest observed [0.198, 0.966]
+
+A one-change verdict must clear this band to mean anything.

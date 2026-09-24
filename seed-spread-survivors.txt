@@ -1,0 +1,30 @@
+ladder: 4 entrants, 96 envs x 400 steps per side
+
+  exp-sigma-ctl/final            26 - 91   exp-seed-1/final              <- exp-seed-1/final better
+  exp-sigma-ctl/final            50 - 62   exp-seed-2/final            
+  exp-sigma-ctl/final            35 - 3    exp-seed-3/final              <- exp-sigma-ctl/final better
+  exp-seed-1/final              100 - 32   exp-seed-2/final              <- exp-seed-1/final better
+  exp-seed-1/final               48 - 2    exp-seed-3/final              <- exp-seed-1/final better
+  exp-seed-2/final               39 - 3    exp-seed-3/final              <- exp-seed-2/final better
+
+rank  entrant                           GF    GA   diff   share
+1     exp-seed-1/final                 239    60   +179   0.799
+2     exp-seed-2/final                 133   153    -20   0.465
+3     exp-sigma-ctl/final              111   156    -45   0.416
+4     exp-seed-3/final                   8   122   -114   0.061
+=== SURVIVORS ONLY (seed 3 excluded) ===
+3 runs, 3 pairings per milestone, 96 envs x 400 steps per side
+
+milestone           n   mean     sd    min    max  widest gap
+final.pt            3  0.475  0.269  0.222  0.758       0.778
+step_010000000.pt   3  0.777  0.240  0.500  0.931       0.931
+step_020000000.pt   3  0.744  0.147  0.581  0.868       0.868
+step_030000000.pt   3  0.598  0.196  0.373  0.727       0.727
+step_040000000.pt   3  0.504  0.340  0.198  0.870       0.870
+
+Across all milestones: 15 same-config pairings
+  goal share      mean 0.620  sd 0.244
+  5-95 percentile [0.215, 0.909]
+  widest observed [0.198, 0.931]
+
+A one-change verdict must clear this band to mean anything.

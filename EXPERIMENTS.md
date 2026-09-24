@@ -95,6 +95,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-chase | `--set chase_opponent_prob=0.5` (was 0) | 12M | 0.069 | **loss** — barely above random (0.064) |
 | exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 70M (v6) | **0.579, beats v2 98-38** | **win** -- but all of it bought between 20M and 40M |
 | exp-sigma | `--set max_log_std=0.0` (sigma <= 1, was uncapped) | 50M, 2 arms | tie at every milestone | **null** -- and the control varied more than the treatment |
+| exp-seeds | *(no change)* -- 4 seeds, same config, 50M each | 50M | spread [0.20, 0.93] | **every single-seed verdict in this file is uninterpretable** |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -338,7 +339,86 @@ three times and measuring the spread, so that future one-change experiments
 have an error bar to be judged against. Every verdict in this file, wins and
 losses alike, was recorded without one.
 
+### exp-seeds: the error bar, and what it costs the rest of this file
+
+Four 50M runs, same config, differing only in seed. Six same-config pairings
+per milestone, where the true answer is known to be "no difference".
+
+**One run in four collapsed.** Seed 3 finished at 0.04 goals per episode
+against 0.40-0.42 for the others, with the highest entropy of the four (4.84)
+and the largest sigma. No non-finite gradient skips: it did not crash, it
+trained itself into uselessness.
+
+**The three that worked still differ enormously.** Final snapshots, head to
+head:
+
+    exp-sigma-ctl   26 - 91   exp-seed-1     seed 1 better
+    exp-sigma-ctl   50 - 62   exp-seed-2     tie
+    exp-seed-1     100 - 32   exp-seed-2     seed 1 better
+
+Two runs of the identical config go 100-32.
+
+| | goal share, same-config pairings |
+|---|---|
+| all four runs (30 pairings) | mean 0.726, sd 0.229, 5-95 pct [0.290, 0.956] |
+| survivors only (15 pairings) | mean 0.620, sd 0.244, 5-95 pct **[0.215, 0.909]** |
+
+The all-four row is reported for completeness but should not be quoted as the
+error bar: half its pairings involve the collapsed run, which is why its mean
+sits at 0.73 rather than 0.50. The distribution is not a band around "no
+difference" -- it is three runs clustering and one failing outright, and a
+single standard deviation describes neither.
+
+For contrast, **evaluation noise is negligible against this.** The same two
+frozen policies replayed under eight eval seeds gave mean 0.701, sd 0.030,
+range [0.667, 0.748] -- about +/-0.06 at 2sd. Seed variance exceeds it by an
+order of magnitude, so no amount of laddering harder would ever have revealed
+the problem. The two noise sources needed separating precisely because the
+obvious remedy addresses the one that did not matter.
+
+#### What this costs
+
+Every verdict in this file was a single seed against a single seed. The band
+those produce when nothing has changed is [0.215, 0.909]. So:
+
+- **The six losses are not established.** Their recorded goal shares were
+  0.056 to 0.09 -- at or below random. That is not what a mildly worse policy
+  looks like; it is what seed 3 looks like. With a 1-in-4 collapse rate and
+  six experiments, several of those "losses" were most likely collapsed runs
+  being read as evidence against the change.
+- **The exp-100m win is not established either**, by this standard. v6 beating
+  v2 98-38 is a goal share of 0.72, comfortably inside the same-config band.
+  What survives from that run is the *within-run trajectory* -- 0.107 -> 0.522
+  monotonically over four consecutive snapshots -- which is a different and
+  stronger kind of evidence than one cross-run pairing. The direction is real.
+  The magnitude, the exact bend location, and the story about `turn` sharpening
+  in the same interval are not.
+- **exp-sigma's null stands**, and was never in tension with anything: 188-191
+  summed across milestones is what no effect looks like.
+
+#### What it would take
+
+With sd 0.244 per pairing, resolving an effect of 0.10 in goal share at 2
+standard errors needs about 24 runs per arm. An effect of 0.20 needs about 6.
+At roughly an hour per 50M-step run on this box, a credibly-powered one-change
+experiment is 6 to 12 hours of compute, not one run and a ladder.
+
+That is the real cost of the protocol this file has been using, and it is
+worth stating plainly: **the "one change per run" discipline was sound, but
+one run per change was never enough to act on.** The discipline that was
+missing is not another knob, it is n.
+
+Untouched by any of this: the physics and engineering fixes, which were
+verified by tests and by rendering rather than by ladder, and the measurement
+tooling itself.
+
 ### Six for six
+
+**Superseded by exp-seeds above: these were single-seed verdicts, and the
+same-config band is [0.215, 0.909]. Several of these runs, judged at 0.056 to
+0.09 goal share, look less like a worse policy than like the 1-in-4 collapse
+measured there. Kept because the reasoning is worth reading and the mechanisms
+were genuinely verified; not because the conclusions hold.**
 
 Every deliberate improvement since v2 has lost:
 
