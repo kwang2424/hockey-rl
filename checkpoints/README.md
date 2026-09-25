@@ -10,6 +10,7 @@ are measured from them and are otherwise unreproducible.
 | `v2-control-gated-reward.pt` | 19.7M | puck position discounted while loose | -6.66 /min |
 | `v3-bounded-mean.pt` | 30.0M | + policy mean squashed into the action range | -6.98 /min |
 | `v6-100m-compute.pt` | 70.0M | **no change at all** -- same setup, more steps | -5.16 /min |
+| `v7-seed4-50m.pt` | 50.0M | same config again, seed 4 -- the strongest of twelve runs | -4.98 /min |
 
 `v6` is by a clear margin the strongest, and the only one that beats `v2`
 head-to-head (98-38). Nothing about the reward, network or hyperparameters
@@ -20,6 +21,13 @@ with it, so the specific snapshot is close to arbitrary within that band.
 
 Among the older three, `v3` is strongest: it beats `v0` 67-39 with ends
 swapped, and ties `v2` (65-81, CI includes 0.5).
+
+`v7` beats `v6` 97-70, and that is **not** evidence it is better. One pairing
+at 0.581 goal share sits inside the band two runs of the *same* config produce
+([0.215, 0.909], measured in exp-seeds), so the honest reading is "comparable,
+at half the steps". It is kept because it was the best of the twelve runs of
+exp-curric6 by goal share against that field, and because `runs/` is
+container-local and would otherwise be lost -- not because it won anything.
 
 None of them plays hockey well. `v6` scores by possession and crashing the net,
 not by shooting -- its shoot channel is pure noise (sigma = 7.8 against a
