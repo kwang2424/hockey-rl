@@ -1,0 +1,27 @@
+arm A: 6 runs   arm B: 6 runs   milestone final.pt
+12 entrants, 66 pairings, 96 envs x 400 steps per side
+
+run                                arm  share vs field
+exp-sigma-ctl/final                  A           0.521
+exp-seed-1/final                     A           0.805
+exp-seed-2/final                     A           0.654
+exp-seed-3/final                     A           0.125  <- collapsed
+exp-seed-4/final                     A           0.711
+exp-seed-5/final                     A           0.181
+exp-curric-0/final                   B           0.523
+exp-curric-1/final                   B           0.190
+exp-curric-2/final                   B           0.284
+exp-curric-3/final                   B           0.172
+exp-curric-4/final                   B           0.602
+exp-curric-5/final                   B           0.149  <- collapsed
+
+collapsed runs:  A 1/6   B 1/6
+
+A vs B mean goal share (A's perspective): 0.643
+  0.500 is no difference
+  permutation null: 95% of relabellings fall in [0.259, 0.738]
+  two-sided p = 0.2175  (20,000 permutations)
+
+  verdict: no detectable difference at this sample size
+  an effect smaller than about 0.24 in goal share cannot be
+  resolved with 6v6 runs; that is a limit of n, not evidence of equality.

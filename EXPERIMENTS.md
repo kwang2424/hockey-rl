@@ -96,6 +96,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-100m | *(no change)* -- 100M steps, snapshots every 10M | 70M (v6) | **0.579, beats v2 98-38** | **win** -- but all of it bought between 20M and 40M |
 | exp-sigma | `--set max_log_std=0.0` (sigma <= 1, was uncapped) | 50M, 2 arms | tie at every milestone | **null** -- and the control varied more than the treatment |
 | exp-seeds | *(no change)* -- 4 seeds, same config, 50M each | 50M | spread [0.20, 0.93] | **every single-seed verdict in this file is uninterpretable** |
+| exp-curric6 | `--curriculum-start 0.75` (was 0), **n=6 per arm** | 50M x 12 | 0.643 for control, p=0.22 | **not established** -- the original 5-47 "loss" does not reproduce |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -411,6 +412,72 @@ missing is not another knob, it is n.
 Untouched by any of this: the physics and engineering fixes, which were
 verified by tests and by rendering rather than by ladder, and the measurement
 tooling itself.
+
+### exp-curric6: the first properly-powered experiment in this project
+
+The curriculum was the first of the six recorded losses, judged on one run
+against one run: 5-47 head to head, a goal share of 0.096. Re-run at n=6 per
+arm, twelve 50M runs, all laddered against each other (66 pairings) and tested
+by shuffling the arm labels.
+
+**The original verdict does not reproduce.**
+
+| | claimed (n=1) | measured (n=6) |
+|---|---|---|
+| goal share, control's favour | 0.904 | **0.643** |
+| significant? | asserted | **no, p = 0.22** |
+
+Per-run goal share against the full twelve-run field:
+
+| control | | curriculum | |
+|---|---|---|---|
+| exp-seed-1 | 0.805 | exp-curric-4 | 0.602 |
+| exp-seed-4 | 0.711 | exp-curric-0 | 0.523 |
+| exp-seed-2 | 0.654 | exp-curric-2 | 0.284 |
+| exp-sigma-ctl | 0.521 | exp-curric-1 | 0.190 |
+| exp-seed-5 | 0.181 | exp-curric-3 | 0.172 |
+| exp-seed-3 | 0.125 | exp-curric-5 | 0.149 |
+| **mean** | **0.499** (sd 0.284) | **mean** | **0.320** (sd 0.195) |
+
+The arms overlap heavily: the control contains runs at 0.125 and 0.181, the
+curriculum contains runs at 0.523 and 0.602. Whichever arm you sampled once,
+you could have drawn either conclusion.
+
+What can and cannot be said:
+
+- **The curriculum is not the catastrophe it was recorded as.** A claimed 0.904
+  became a measured 0.643, roughly a quarter of the effect.
+- **It still leans the same way.** The sign agrees with the original, and
+  0.643 is not nothing. This is not a vindication of the curriculum, it is a
+  refusal to convict on the old evidence.
+- **n=6 cannot resolve it.** The permutation null puts 95% of relabellings in
+  [0.259, 0.738], so anything under about 0.24 is invisible here. The observed
+  0.143 above even is inside that. Halving the resolution needs four times the
+  runs: roughly 24 per arm, about a day of compute per arm.
+
+#### Collapse is a property of the baseline, not of any change
+
+The more useful finding. **The control arm collapses too.** Judged by goal
+share against the field, one control run finished at 0.125 and another at
+0.181; on the curriculum side, 0.149 and 0.172. By rating (< -2.0) it is two
+of six controls and three of six curriculum runs; by the 0.15 share threshold,
+one of six each. The rate is somewhere around a quarter to a half, it is
+threshold-dependent, and **it is not binary** -- there is a continuum from
+healthy to dead, which is why a single cutoff should not be quoted as *the*
+collapse rate.
+
+The consequence stands whichever threshold you pick: a run of the *unchanged*
+config fails outright a substantial fraction of the time. So each of the six
+original experiments had something like a one-in-three chance of producing a
+collapsed run no matter what was changed, and a collapsed run reads exactly
+like a catastrophic loss. That is the most likely explanation for a cluster of
+six verdicts at or below random, and it requires no property of the six changes
+at all.
+
+**This reframes the project's central problem.** The question was "why does no
+improvement help?" The better question is "why does a third of runs of the
+baseline config die?" -- because until that is fixed, no experiment on top of
+it can be measured without burning six runs per arm on noise.
 
 ### Six for six
 
