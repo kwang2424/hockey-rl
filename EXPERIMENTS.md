@@ -97,6 +97,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-sigma | `--set max_log_std=0.0` (sigma <= 1, was uncapped) | 50M, 2 arms | tie at every milestone | **null** -- and the control varied more than the treatment |
 | exp-seeds | *(no change)* -- 4 seeds, same config, 50M each | 50M | spread [0.20, 0.93] | **every single-seed verdict in this file is uninterpretable** |
 | exp-curric6 | `--curriculum-start 0.75` (was 0), **n=6 per arm** | 50M x 12 | 0.643 for control, p=0.22 | **not established** -- the original 5-47 "loss" does not reproduce |
+| screen-prox | `--set proximity_rate=0.003`, 8 seeds per arm, 3M steps | 3M x 16 | goal% 7.5 -> 13.6, p=0.16 | **did not pass** its pre-registered test -- but every run now reaches the puck (p=0.001) |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -478,6 +479,77 @@ at all.
 improvement help?" The better question is "why does a third of runs of the
 baseline config die?" -- because until that is fixed, no experiment on top of
 it can be measured without burning six runs per arm on noise.
+
+### Why a third of runs die: the critic cancels the shaping
+
+**What dead runs do.** Two copies of a dead policy stay 17-27m from the puck
+(random play: 15.6m), 31-47m apart, with the puck nearly motionless at centre
+ice, and score in 2-3% of episodes -- less than random play (7%). One parked
+in front of its own net, another hugged the boards in its own half.
+Optimizer statistics (KL, gradient norm, policy loss) are indistinguishable
+from healthy runs; value loss is 5-10x lower only because there are no goals
+to predict. Fresh seeds are already in this state at the first 250k-step
+snapshot, about ten updates in, so it is not a strategy learned over time --
+they never learn to go to the puck at all.
+
+**Why.** Potential-based shaping leaves advantages unchanged once the critic
+is accurate: the shaped value is V - Phi, and Phi cancels out of every TD
+error. Phi here is built from distances that sit directly in the observation,
+so the critic learns -Phi almost immediately:
+
+| policy | corr(V, -Phi) | slope |
+|---|---|---|
+| exp-seed-3, 50M (dead) | **0.995** | 1.04 |
+| early-12 @2.75M (dead) | 0.948 | 0.95 |
+| early-10 @0.25M (dead) | 0.707 | 0.72 |
+| early-11 @0.25M (learned to approach) | **0.083** | 0.12 |
+| exp-seed-4, 50M (healthy) | 0.343 | 0.57 |
+
+In the dead run the critic *is* -Phi, so the proximity term added specifically
+to bootstrap "go to the puck" contributes zero gradient, at any
+`proximity_weight`. The only signal left is goals, at 2% of episodes. The one
+short run that learned to approach was the one whose critic had not yet
+absorbed Phi at 250k steps. It is a race, and the critic usually wins.
+
+### screen-prox: the fix gets runs to the puck, but not to scoring
+
+`proximity_rate` pays the same blade-to-puck edge per step rather than through
+the potential, which an accurate critic cannot cancel. Screened at 3M steps
+(dead runs are dead by 250k), 8 seeds per arm, analysis fixed before any
+treatment data existed.
+
+**Pre-registered primary -- self-play goal%, mean of the 2.0-2.75M
+snapshots: did not pass.**
+
+| | in basin (< 5%) | mean goal% |
+|---|---|---|
+| control | 4/8 | 7.5 |
+| proximity_rate = 0.003 | 3/8 | 13.6 |
+
+Difference +6.2 points, permutation p = 0.16. The direction is favourable and
+the treatment mean is nearly double, but the test was set before the data and
+it is not met, so this is recorded as a fail, not a trend.
+
+**Secondary, exploratory -- distance to the puck:** control 13.5m, treatment
+9.4m, p = 0.001; all eight treatment runs sit closer than the median control
+run. Labelled exploratory because it was not the pre-registered metric. It was
+deliberately *not* made primary, precisely so that a policy which learns to
+hover at the puck without scoring would count as a failure -- and that is
+exactly what three of the eight treatment runs did:
+
+    prox-10   goal%  3.5   d_puck 11.1
+    prox-12   goal%  2.5   d_puck 10.9
+    prox-13   goal%  4.9   d_puck  8.6
+
+**Reading.** The dead basin has two layers, and the fix removed only the
+first. Every treated run now reaches the puck -- the mechanism is confirmed:
+a signal the critic cannot cancel does teach approach, every time. But
+arriving at the puck is not scoring, and three of eight arrived and still did
+not convert. The remaining barrier is contact -> goal, which again depends on
+the goal reward alone, at the same 2% of episodes.
+
+The 16-hour full-length confirmation was conditional on this screen passing.
+It did not, so it was not run.
 
 ### Six for six
 

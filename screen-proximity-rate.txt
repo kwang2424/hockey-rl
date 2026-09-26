@@ -1,0 +1,22 @@
+control
+  early-10  goal%   3.0   d_puck  15.0   <- in basin
+  early-11  goal%  10.3   d_puck  10.9
+  early-12  goal%   2.0   d_puck  14.3   <- in basin
+  early-13  goal%   9.0   d_puck  17.8
+  early-14  goal%   7.2   d_puck  15.3
+  early-15  goal%   2.0   d_puck  13.1   <- in basin
+  early-16  goal%   3.5   d_puck  12.0   <- in basin
+  early-17  goal%  22.5   d_puck   9.9
+proximity_rate=0.003
+  prox-10  goal%   3.5   d_puck  11.1   <- in basin
+  prox-11  goal%  15.4   d_puck   9.1
+  prox-12  goal%   2.5   d_puck  10.9   <- in basin
+  prox-13  goal%   4.9   d_puck   8.6   <- in basin
+  prox-14  goal%  20.2   d_puck   9.4
+  prox-15  goal%  27.1   d_puck   9.2
+  prox-16  goal%  10.9   d_puck   9.0
+  prox-17  goal%  24.6   d_puck   7.8
+
+in basin:  control 4/8   treatment 3/8
+mean goal%: control 7.5   treatment 13.6   diff +6.2
+permutation p = 0.1632
