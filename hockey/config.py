@@ -150,6 +150,29 @@ class Config:
     # closing on the puck without ever facing it, and the two objectives come
     # apart. Set False only to reproduce the old behaviour.
     proximity_from_blade: bool = True
+    # The same "closer to the puck than your opponent" signal, paid per step
+    # instead of through the potential. Default off.
+    #
+    # Why a potential cannot do this job on its own: shaping F = g*Phi' - Phi
+    # leaves the *advantages* unchanged once the critic is accurate -- the
+    # shaped value is just V - Phi, and Phi cancels out of every TD error. Phi
+    # here is built from distances that sit directly in the observation, so
+    # the critic learns -Phi almost immediately. Measured on a run that never
+    # learned to play (exp-seed-3, 50M): corr(V, -Phi) = 0.995, slope 1.04.
+    # From that point the proximity hint above contributes exactly zero
+    # gradient, whatever proximity_weight is, and the only signal left is
+    # goals -- which that run scored in 2-3% of episodes. The one short run
+    # that did learn to approach the puck was the one whose critic had NOT
+    # yet absorbed Phi at 250k steps (corr 0.08 against 0.71).
+    #
+    # A per-step rate is not a potential, so an accurate critic cannot cancel
+    # it: being closer earns more reward for as long as you stay closer, and
+    # that is a real advantage for closing in. It stays exactly zero-sum
+    # (antisymmetric in the two skaters). Unlike the potential it CAN change
+    # which policy is optimal, so keep it small against a goal: at 0.003 and
+    # a typical 10m edge, a full episode is worth about 0.3 goals, under the
+    # goal_reward / max_episode_steps bound possession_rate is held to.
+    proximity_rate: float = 0.0
     # Must match PPOConfig.gamma -- the shaping uses this one and GAE uses
     # that one, and if they diverge the shaping stops being policy-invariant.
     # tests/test_ppo.py asserts they agree.

@@ -392,3 +392,47 @@ def test_carrying_the_puck_beats_flinging_it_away():
     assert controlled > 1.2 * loose, (
         f"margin only {controlled/loose:.2f}x -- controlled carry barely beats a clear"
     )
+
+
+def _step_same(cfg, seed=21, steps=40):
+    """Run one env under `cfg` with a fixed action stream; return A's rewards
+    and the blade-to-puck distances *after* each step."""
+    env = VecHockeyEnv(num_envs=16, cfg=cfg, seed=seed)
+    rng = np.random.default_rng(seed)
+    rs, gaps = [], []
+    for _ in range(steps):
+        act = rng.uniform(-1, 1, (16, 2, ACT_DIM))
+        _, rew, goal, _, _ = env.step(act)
+        blade = env.blade_points()[0]
+        d = np.linalg.norm(env.puck_pos[:, None, :] - blade, axis=-1)
+        rs.append(rew.copy()); gaps.append(np.where(goal, np.nan, d[:, 1] - d[:, 0]))
+    return np.array(rs), np.array(gaps)
+
+
+def test_proximity_rate_is_zero_sum():
+    rew, _ = _step_same(Config(proximity_rate=0.003))
+    assert np.allclose(rew[..., 0], -rew[..., 1])
+
+
+def test_proximity_rate_pays_the_closer_skater_exactly_its_edge():
+    """Same seed, same actions, rate on vs off: the only difference is
+    rate * (d_B - d_A) / L on every step, positive when A is closer.
+
+    Compared on steps where no env reset, because a reset replaces the state
+    the per-step term is measured on."""
+    on, gap = _step_same(Config(proximity_rate=0.003))
+    off, _ = _step_same(Config(proximity_rate=0.0))
+    diff = on[..., 0] - off[..., 0]
+    ok = ~np.isnan(gap)
+    expected = 0.003 * gap[ok] / C.rink_length
+    assert np.allclose(diff[ok], expected, atol=1e-12)
+    assert (np.sign(diff[ok]) == np.sign(gap[ok])).mean() > 0.99
+
+
+def test_proximity_rate_off_by_default_leaves_rewards_bit_identical():
+    """The knob defaults to 0.0 and must not perturb a single reward, or every
+    earlier run stops being a valid control for the ones after it."""
+    a, _ = _step_same(C)
+    b, _ = _step_same(Config(proximity_rate=0.0))
+    assert C.proximity_rate == 0.0
+    assert np.array_equal(a, b)
