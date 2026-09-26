@@ -436,3 +436,41 @@ def test_proximity_rate_off_by_default_leaves_rewards_bit_identical():
     b, _ = _step_same(Config(proximity_rate=0.0))
     assert C.proximity_rate == 0.0
     assert np.array_equal(a, b)
+
+
+def _step_puck(cfg, seed=31, steps=40):
+    env = VecHockeyEnv(num_envs=16, cfg=cfg, seed=seed)
+    rng = np.random.default_rng(seed)
+    rs, edge = [], []
+    for _ in range(steps):
+        act = rng.uniform(-1, 1, (16, 2, ACT_DIM))
+        _, rew, goal, _, _ = env.step(act)
+        gc = env._goal_centers
+        e = (np.linalg.norm(env.puck_pos - gc[1], axis=-1)
+             - np.linalg.norm(env.puck_pos - gc[0], axis=-1))
+        gate = np.where(env.possessor >= 0, 1.0, C.loose_puck_factor)
+        rs.append(rew.copy()); edge.append(np.where(goal, np.nan, gate * e))
+    return np.array(rs), np.array(edge)
+
+
+def test_puck_position_rate_is_zero_sum():
+    rew, _ = _step_puck(Config(puck_position_rate=0.001))
+    assert np.allclose(rew[..., 0], -rew[..., 1])
+
+
+def test_puck_position_rate_pays_the_gated_positional_edge():
+    """Same seed and actions, on vs off: the only difference is
+    rate * gate * (d_own - d_opp) / L, positive with the puck in A's
+    attacking half, halved while loose."""
+    on, edge = _step_puck(Config(puck_position_rate=0.001))
+    off, _ = _step_puck(Config(puck_position_rate=0.0))
+    ok = ~np.isnan(edge)
+    assert np.allclose((on[..., 0] - off[..., 0])[ok],
+                       0.001 * edge[ok] / C.rink_length, atol=1e-12)
+
+
+def test_puck_position_rate_off_by_default_leaves_rewards_bit_identical():
+    a, _ = _step_puck(C)
+    b, _ = _step_puck(Config(puck_position_rate=0.0))
+    assert C.puck_position_rate == 0.0
+    assert np.array_equal(a, b)

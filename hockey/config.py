@@ -173,6 +173,21 @@ class Config:
     # a typical 10m edge, a full episode is worth about 0.3 goals, under the
     # goal_reward / max_episode_steps bound possession_rate is held to.
     proximity_rate: float = 0.0
+    # The potential's puck-position term -- puck nearer their net than yours,
+    # halved while loose -- paid per step instead, for the same reason as
+    # proximity_rate: the critic learns -Phi and cancels the potential version
+    # out of every advantage. screen-prox showed the dead state has two
+    # layers; proximity_rate removed the first (every treated run now reaches
+    # the puck) but three of eight reached it and still did not score, and the
+    # "move the puck toward their goal" hint is cancelled in exactly the same
+    # way. Default off.
+    #
+    # The risk this term invites is sitting on the puck deep in the attacking
+    # end instead of shooting, so it is sized against the worst case, not the
+    # typical one: puck held at their goal line for a whole episode is
+    # 600 * 0.87 * 0.001 = 0.52 goals, so scoring still dominates, and scoring
+    # at once (forfeiting the remaining stream) still nets about +0.5.
+    puck_position_rate: float = 0.0
     # Must match PPOConfig.gamma -- the shaping uses this one and GAE uses
     # that one, and if they diverge the shaping stops being policy-invariant.
     # tests/test_ppo.py asserts they agree.

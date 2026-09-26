@@ -275,6 +275,13 @@ class VecHockeyEnv:
             ref = self.blade_points()[0] if cfg.proximity_from_blade else self.skater_pos
             to_puck = np.linalg.norm(self.puck_pos[:, None, :] - ref, axis=-1)
             r_a = r_a + cfg.proximity_rate * (to_puck[:, 1] - to_puck[:, 0]) / cfg.rink_length
+        # Per-step puck position, same geometry and loose-puck gate as the
+        # potential's position term. See Config.puck_position_rate.
+        if cfg.puck_position_rate:
+            d_opp = np.linalg.norm(self.puck_pos - self._goal_centers[0], axis=-1)
+            d_own = np.linalg.norm(self.puck_pos - self._goal_centers[1], axis=-1)
+            gate = np.where(self.possessor >= 0, 1.0, cfg.loose_puck_factor)
+            r_a = r_a + cfg.puck_position_rate * gate * (d_own - d_opp) / cfg.rink_length
         reward = np.stack([r_a, -r_a], axis=1)
 
         info = self._info(scored_a, scored_b, goal, truncated)
