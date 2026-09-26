@@ -474,3 +474,51 @@ def test_puck_position_rate_off_by_default_leaves_rewards_bit_identical():
     b, _ = _step_puck(Config(puck_position_rate=0.0))
     assert C.puck_position_rate == 0.0
     assert np.array_equal(a, b)
+
+
+def _step_vel(cfg, seed=41, steps=40):
+    """Rewards plus the exact velocity quantities each knob should pay on."""
+    env = VecHockeyEnv(num_envs=16, cfg=cfg, seed=seed)
+    rng = np.random.default_rng(seed)
+    rs, closing, pgoal = [], [], []
+    for _ in range(steps):
+        act = rng.uniform(-1, 1, (16, 2, ACT_DIM))
+        _, rew, goal, _, _ = env.step(act)
+        blade = env.blade_points()[0]
+        tp = env.puck_pos[:, None, :] - blade
+        u = tp / np.linalg.norm(tp, axis=-1, keepdims=True)
+        c = np.maximum((env.skater_vel * u).sum(-1), 0.0) / C.max_speed
+        tg = env._goal_centers[0] - env.puck_pos
+        g = (env.puck_vel * tg / np.linalg.norm(tg, axis=-1, keepdims=True)).sum(-1) / C.puck_max_speed
+        mask = goal[:, None]
+        rs.append(rew.copy())
+        closing.append(np.where(mask, np.nan, c))
+        pgoal.append(np.where(goal, np.nan, g))
+    return np.array(rs), np.array(closing), np.array(pgoal)
+
+
+def test_puck_goal_speed_rate_is_zero_sum_and_exact():
+    on, _, g = _step_vel(Config(puck_goal_speed_rate=0.01))
+    off, _, _ = _step_vel(Config())
+    assert np.allclose(on[..., 0], -on[..., 1])
+    ok = ~np.isnan(g)
+    assert np.allclose((on[..., 0] - off[..., 0])[ok], 0.01 * g[ok], atol=1e-12)
+
+
+def test_approach_speed_rate_pays_each_skater_its_own_closing_speed():
+    """Individual, not zero-sum: each skater gets rate * max(0, v.u)/max_speed
+    on top of the zero-sum reward, and never a penalty for moving away."""
+    on, c, _ = _step_vel(Config(approach_speed_rate=0.001))
+    off, _, _ = _step_vel(Config())
+    ok = ~np.isnan(c)
+    extra = on - off
+    assert np.allclose(extra[ok], 0.001 * c[ok], atol=1e-12)
+    assert (extra[ok] >= -1e-15).all()
+    assert not np.allclose(on[..., 0], -on[..., 1])     # deliberately not zero-sum
+
+
+def test_velocity_rates_off_by_default_leave_rewards_bit_identical():
+    a, _, _ = _step_vel(C)
+    b, _, _ = _step_vel(Config(approach_speed_rate=0.0, puck_goal_speed_rate=0.0))
+    assert C.approach_speed_rate == 0.0 and C.puck_goal_speed_rate == 0.0
+    assert np.array_equal(a, b)

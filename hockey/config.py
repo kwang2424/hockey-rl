@@ -188,6 +188,27 @@ class Config:
     # 600 * 0.87 * 0.001 = 0.52 goals, so scoring still dominates, and scoring
     # at once (forfeiting the remaining stream) still nets about +0.5.
     puck_position_rate: float = 0.0
+    # RLGym-style shaping, after the Rocket League PPO community's practice
+    # (RLGym-PPO-Guide, rewards.md): pay for VELOCITY, not position. A skater
+    # hovering at the puck or parked on it deep in the attacking end has zero
+    # velocity and earns nothing -- the two exploits position-based rates
+    # invite, and the one screen-prox actually produced (3/8 runs reached the
+    # puck and did not score). Both default off.
+    #
+    # approach_speed_rate: each skater's own speed toward the puck, positive
+    # part only, as a fraction of max_speed. Deliberately NOT zero-sum: per the
+    # same guide, a reward should be zero-sum only if the opponent benefits
+    # from preventing it, and making "skate at the puck" relative to a copy of
+    # yourself only adds noise. Positive-only so that skating back to defend
+    # is not punished. At 0.001 a full episode at full speed toward the puck
+    # is 0.6 goals, but that cannot be sustained -- arriving ends it.
+    approach_speed_rate: float = 0.0
+    # puck_goal_speed_rate: puck velocity toward the opponent's net, as a
+    # fraction of puck_max_speed. Zero-sum, and negative when the puck heads
+    # for your own net. Its time integral is roughly net puck displacement
+    # toward goal, so it is bounded by the rink and cannot be farmed by
+    # bouncing the puck back and forth.
+    puck_goal_speed_rate: float = 0.0
     # Must match PPOConfig.gamma -- the shaping uses this one and GAE uses
     # that one, and if they diverge the shaping stops being policy-invariant.
     # tests/test_ppo.py asserts they agree.
