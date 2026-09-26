@@ -98,6 +98,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-seeds | *(no change)* -- 4 seeds, same config, 50M each | 50M | spread [0.20, 0.93] | **every single-seed verdict in this file is uninterpretable** |
 | exp-curric6 | `--curriculum-start 0.75` (was 0), **n=6 per arm** | 50M x 12 | 0.643 for control, p=0.22 | **not established** -- the original 5-47 "loss" does not reproduce |
 | screen-prox | `--set proximity_rate=0.003`, 8 seeds per arm, 3M steps | 3M x 16 | goal% 7.5 -> 13.6, p=0.16 | **did not pass** its pre-registered test -- but every run now reaches the puck (p=0.001) |
+| screen-puckpos | `+ puck_position_rate=0.001` on top of proximity_rate, 8 seeds | 3M x 8 | 13.8 -> 13.2, p=0.92 | **fail** -- adds nothing; seeds 10 and 12 stuck in every arm |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -550,6 +551,36 @@ the goal reward alone, at the same 2% of episodes.
 
 The 16-hour full-length confirmation was conditional on this screen passing.
 It did not, so it was not run.
+
+### screen-puckpos: paying for puck position adds nothing
+
+Second layer of the dead state: runs that reach the puck but never score.
+Hypothesis: the "move the puck toward their net" hint is a potential too, so
+the critic cancels it the same way. `puck_position_rate` pays that term per
+step instead, stacked on `proximity_rate` and compared against the eight
+proximity-only runs. Pre-registered as before.
+
+| arm (seeds 10-17, 3M) | stuck (< 5% goals) | mean goal% | mean d_puck |
+|---|---|---|---|
+| base, no rates | 4/8 | 8.4 | 13.4 |
+| proximity_rate | 3/8 | 13.8 | 9.4 |
+| + puck_position_rate | 3/8 | 13.2 | 10.1 |
+
+**Primary, treatment vs proximity-only: -0.6 points, p = 0.92. Fail**, and
+not a near miss. (Re-measured with seeded probes, proximity vs base is +5.4,
+p = 0.26 -- consistent with the p = 0.16 of the first screen; still not
+significant.)
+
+**The pattern that matters more: the same seeds fail in every arm.** Seeds
+10 and 12 are stuck under no shaping, under proximity_rate, and under both
+rates together. Whatever sinks them is not something these reward terms
+reach -- which points at what the seed actually controls: the network's
+initial weights and the environment's random stream.
+
+(The analysis script crashed on its summary line -- a stray `%` in a format
+string -- after all per-run measurements had completed and printed. The
+pre-registered statistics were computed from those logged values with no
+change to the method.)
 
 ### Six for six
 

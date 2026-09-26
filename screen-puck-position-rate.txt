@@ -1,0 +1,32 @@
+base (no rates)
+  early-10  goal%   2.0   d_puck  15.2   <- in basin
+  early-11  goal%  11.4   d_puck  10.7
+  early-12  goal%   2.0   d_puck  14.3   <- in basin
+  early-13  goal%   9.9   d_puck  17.1
+  early-14  goal%   9.3   d_puck  15.4
+  early-15  goal%   2.0   d_puck  13.1   <- in basin
+  early-16  goal%   4.0   d_puck  11.9   <- in basin
+  early-17  goal%  26.6   d_puck   9.8
+prox (proximity_rate=0.003)  <- control
+  prox-10  goal%   3.0   d_puck  11.0   <- in basin
+  prox-11  goal%  15.7   d_puck   9.2
+  prox-12  goal%   2.0   d_puck  11.1   <- in basin
+  prox-13  goal%   4.0   d_puck   8.7   <- in basin
+  prox-14  goal%  21.4   d_puck   9.5
+  prox-15  goal%  27.9   d_puck   9.4
+  prox-16  goal%  11.6   d_puck   9.0
+  prox-17  goal%  25.0   d_puck   7.7
+both (+ puck_position_rate=0.001)  <- treatment
+  both-10  goal%   4.0   d_puck  12.7   <- in basin
+  both-11  goal%  14.5   d_puck   8.5
+  both-12  goal%   2.5   d_puck  11.8   <- in basin
+  both-13  goal%  10.4   d_puck   6.8
+  both-14  goal%   7.2   d_puck  10.6
+  both-15  goal%  30.1   d_puck  12.2
+  both-16  goal%   2.0   d_puck  10.1   <- in basin
+  both-17  goal%  34.9   d_puck   8.3
+Traceback (most recent call last):
+  File "/tmp/claude-0/-home-user-hockey-rl/84b09385-f668-5d0a-87ec-1c395d1edf33/scratchpad/screen2_analysis.py", line 52, in <module>
+    print("\nin basin (<5%):  base %d/8   prox %d/8   both %d/8" % tuple(int((x[0] < 5).sum()) for x in (base, prox, both)))
+          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ValueError: unsupported format character ')' (0x29) at index 14
