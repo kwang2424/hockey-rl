@@ -1,0 +1,11 @@
+            env 10  env 12  env 11  env 17
+init 10      2.0*    2.0*    2.0*    2.0*
+init 12      2.0*    2.0*    4.0*    2.5*
+init 11      2.5*    7.6    11.4     8.1 
+init 17      3.9*   17.2     5.0*   26.6 
+(* = stuck, < 5% goals)
+
+WEIGHTS    effect (init pass - init fail): +7.9 points, p = 0.0014
+EXPERIENCE effect (env pass - env fail):   +2.8 points, p = 0.3358
+verdict: starting WEIGHTS decide
+diagonal on this machine: 10: 2.0 stuck, 12: 2.0 stuck, 11: 11.4, 17: 26.6   (old verdicts: 10, 12 stuck; 11, 17 not)

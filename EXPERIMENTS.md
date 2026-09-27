@@ -99,6 +99,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | exp-curric6 | `--curriculum-start 0.75` (was 0), **n=6 per arm** | 50M x 12 | 0.643 for control, p=0.22 | **not established** -- the original 5-47 "loss" does not reproduce |
 | screen-prox | `--set proximity_rate=0.003`, 8 seeds per arm, 3M steps | 3M x 16 | goal% 7.5 -> 13.6, p=0.16 | **did not pass** its pre-registered test -- but every run now reaches the puck (p=0.001) |
 | screen-puckpos | `+ puck_position_rate=0.001` on top of proximity_rate, 8 seeds | 3M x 8 | 13.8 -> 13.2, p=0.92 | **fail** -- adds nothing; seeds 10 and 12 stuck in every arm |
+| seed-split | init_seed x seed grid, {10,12} vs {11,17}, 16 fresh runs | 3M x 16 | weights +7.9 (p=0.001), experience +2.8 (p=0.34) | **starting weights decide** -- bad inits stuck 8/8 |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -581,6 +582,51 @@ initial weights and the environment's random stream.
 string -- after all per-run measurements had completed and printed. The
 pre-registered statistics were computed from those logged values with no
 change to the method.)
+
+### seed-split: the starting weights decide, not the early experience
+
+Seeds 10 and 12 were stuck in every arm of the last two screens; 11 and 17
+passed in every arm. A seed sets both the network's starting weights and
+everything else, so `init_seed` was added to separate them, and all sixteen
+combinations were trained fresh on one machine. Pre-registered.
+
+Self-play goal%, mean of 2.0-2.75M (* = stuck, < 5%):
+
+|  | env 10 | env 12 | env 11 | env 17 |
+|---|---|---|---|---|
+| **init 10** | 2.0* | 2.0* | 2.0* | 2.0* |
+| **init 12** | 2.0* | 2.0* | 4.0* | 2.5* |
+| **init 11** | 2.5* | 7.6 | 11.4 | 8.1 |
+| **init 17** | 3.9* | 17.2 | 5.0* | 26.6 |
+
+| effect | size | p |
+|---|---|---|
+| starting weights | **+7.9 points** | **0.0014** |
+| early experience | +2.8 points | 0.34 |
+
+**Verdict: the starting weights decide.** Starting from seed 10's or 12's
+weights, a run is stuck in all eight cells, whatever game situations it sees.
+The effect is asymmetric: bad weights are sufficient to sink a run, while good
+weights are necessary but not sufficient -- three of eight good-weight cells
+still stuck, two of them on env stream 10.
+
+The diagonal reproduced the old fates exactly on new hardware (10 and 12
+stuck, 11 and 17 not), after a container restart that changed the floating-
+point trajectory of every run. So fate is not float-level luck; it is carried
+by the initial weights robustly. No restart occurred during the grid (uptime
+rose monotonically across all sixteen runs).
+
+What the bad weights carry is not visible at step zero. Initial action means
+are under 0.01 in magnitude for all four networks, as the small output-layer
+initialisation intends, and the initial value estimates (-0.57, -0.00, -0.54,
++0.14 for seeds 10, 12, 11, 17) do not line up with fate. It shows in how
+learning unfolds from them, not in their first outputs. Two networks per group
+cannot say which property matters.
+
+This also reframes the shaping screens. Those arms shared each seed's starting
+weights, and the weights -- not the reward terms -- set most of the outcome,
+which is why the same seeds failed in every arm and why no reward knob has
+moved the stuck count by more than one run in eight.
 
 ### Six for six
 
