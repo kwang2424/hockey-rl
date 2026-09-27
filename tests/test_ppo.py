@@ -313,3 +313,35 @@ def test_chase_and_pool_probabilities_do_not_cannibalise_each_other():
     assert np.mean(t.opp_id == CHASE_OPPONENT) == pytest.approx(0.5, abs=0.03)
     assert np.mean(t.opp_id >= 0) == pytest.approx(0.25, abs=0.03)
     assert np.mean(t.opp_id == -1) == pytest.approx(0.25, abs=0.03)
+
+
+def _trainer(seed, init_seed=-1):
+    from hockey.config import DEFAULT
+    from rl.ppo import PPOConfig, PPOTrainer
+    return PPOTrainer(PPOConfig(num_envs=4, rollout_steps=8, seed=seed, init_seed=init_seed), DEFAULT)
+
+
+def _weights(tr):
+    return torch.cat([p.detach().flatten() for p in tr.net.parameters()])
+
+
+def test_init_seed_changes_only_the_starting_weights():
+    """Weights come from init_seed; the sampling stream still follows seed."""
+    import torch as T
+    a = _trainer(seed=10, init_seed=17)
+    wa, sa = _weights(a), T.rand(5)
+    b = _trainer(seed=17)
+    wb = _weights(b)
+    c = _trainer(seed=10)
+    sc = T.rand(5)
+    assert torch.equal(wa, wb)          # same weights as a plain seed-17 run
+    assert torch.equal(sa, sc)          # same RNG stream as a plain seed-10 run
+
+
+def test_init_seed_unset_or_equal_is_bit_identical():
+    import torch as T
+    w0 = _weights(_trainer(seed=12)); s0 = T.rand(5)
+    w1 = _weights(_trainer(seed=12, init_seed=12)); s1 = T.rand(5)
+    w2 = _weights(_trainer(seed=12, init_seed=-1)); s2 = T.rand(5)
+    assert torch.equal(w0, w1) and torch.equal(w0, w2)
+    assert torch.equal(s0, s1) and torch.equal(s0, s2)

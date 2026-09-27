@@ -91,6 +91,12 @@ class PPOConfig:
     curriculum_frac: float = 0.6   # fraction of training spent annealing
 
     seed: int = 0
+    # Seed for the network's initial weights ONLY; -1 means "same as seed".
+    # Everything else -- environment stream, action sampling, opponent choice,
+    # minibatch order -- still follows `seed`. Exists to answer one question:
+    # when a seed produces a dead run, is it the starting weights or the early
+    # experience? Unset, or equal to `seed`, it is bit-identical to before.
+    init_seed: int = -1
     device: str = "cpu"
     out_dir: str = "runs/v0"
 
@@ -105,8 +111,7 @@ class PPOTrainer:
 
         self.device = torch.device(self.p.device)
         self.env = VecHockeyEnv(self.p.num_envs, cfg=cfg, seed=self.p.seed)
-        self.net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
-                               self.p.bounded_mean, self.p.max_log_std).to(self.device)
+        self.net = self._initial_net()
         self.opt = torch.optim.Adam(self.net.parameters(), lr=self.p.lr, eps=1e-5)
         self.norm = RunningNorm(OBS_DIM)
 
@@ -122,6 +127,27 @@ class PPOTrainer:
         self.history = []
 
     # ------------------------------------------------------------------
+    def _initial_net(self):
+        """Build the network, drawing its weights from init_seed if one is set.
+
+        The torch generator is left exactly where the default path would leave
+        it: a throwaway net is built from `seed` first, purely to consume the
+        same draws, and that state is restored after the real net is built
+        from `init_seed`. So action sampling -- and everything downstream --
+        follows `seed` unchanged, and only the starting weights differ.
+        """
+        def build():
+            return ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
+                               self.p.bounded_mean, self.p.max_log_std).to(self.device)
+        if self.p.init_seed < 0 or self.p.init_seed == self.p.seed:
+            return build()
+        build()                                   # consume seed's draws
+        after = torch.get_rng_state()
+        torch.manual_seed(self.p.init_seed)
+        net = build()
+        torch.set_rng_state(after)
+        return net
+
     def policy(self):
         return TorchPolicy(self.net, self.norm, self.device)
 
