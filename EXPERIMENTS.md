@@ -100,6 +100,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | screen-prox | `--set proximity_rate=0.003`, 8 seeds per arm, 3M steps | 3M x 16 | goal% 7.5 -> 13.6, p=0.16 | **did not pass** its pre-registered test -- but every run now reaches the puck (p=0.001) |
 | screen-puckpos | `+ puck_position_rate=0.001` on top of proximity_rate, 8 seeds | 3M x 8 | 13.8 -> 13.2, p=0.92 | **fail** -- adds nothing; seeds 10 and 12 stuck in every arm |
 | seed-split | init_seed x seed grid, {10,12} vs {11,17}, 16 fresh runs | 3M x 16 | weights +7.9 (p=0.001), experience +2.8 (p=0.34) | **starting weights decide** -- bad inits stuck 8/8 |
+| init-survey | 24 starting networks, one game stream, no shaping | 3M x 24 | primary AUC 0.73, p=0.063 | **fail** (narrow, right direction); post-hoc continuous rho=-0.54, p=0.008 -- needs confirming |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -627,6 +628,50 @@ This also reframes the shaping screens. Those arms shared each seed's starting
 weights, and the weights -- not the reward terms -- set most of the outcome,
 which is why the same seeds failed in every arm and why no reward knob has
 moved the stuck count by more than one run in eight.
+
+### init-survey: what about the starting weights? Not visible at step zero
+
+Twenty-four starting networks (the grid's four plus 100-119), all on the same
+game stream, no shaping, 3M steps -- only the weights vary. The analysis script
+(`analysis/init_survey.py`) was committed before any survey run existed.
+11 of 24 got stuck (46%). The four known networks kept their fates on a third
+machine (10 and 12 stuck, 11 and 17 not), so weights-decide-fate is robust
+across hardware.
+
+| predictor | AUC (stuck vs ok) | p | |
+|---|---|---|---|
+| **critic-shaping alignment, corr(V, -Phi), at 250k -- primary** | 0.727 | **0.063** | **fail** |
+| step 0: corr(V, -Phi) | 0.671 | 0.17 | -- |
+| step 0: critic output sd | 0.531 | 0.82 | -- |
+| step 0: actor hidden saturation | 0.503 | 0.99 | -- |
+
+**The primary failed** its pre-registered bar, narrowly and in the predicted
+direction. Nothing about the untrained network predicts fate: whatever the
+bad weights carry becomes visible only once learning starts.
+
+#### Post-hoc, and labelled as such
+
+Eight of the 24 runs landed within 1.5 points of the 5% stuck cutoff, so the
+binary split partly measures noise at the boundary. Re-testing the same
+predictors against goal% as a continuous outcome
+(`analysis/init_survey_posthoc.py`, written after seeing the results):
+
+| predictor | Spearman vs goal% | p |
+|---|---|---|
+| corr(V, -Phi) at 250k | **-0.544** | **0.0075** |
+| step 0: corr(V, -Phi) | -0.254 | 0.23 |
+| step 0: critic output sd | -0.202 | 0.34 |
+| step 0: actor saturation | +0.098 | 0.65 |
+
+Strongly suggestive, and exactly what the race mechanism predicts -- runs
+whose critic has absorbed the shaping by 250k steps score worse. But the test
+was chosen after the data, so it does not overturn the verdict. It is a
+hypothesis for a confirmation on fresh networks with the continuous test
+pre-registered.
+
+If it holds up, it is also practically useful: 250k steps is about fifteen
+seconds of training, so it would be a cheap early filter for doomed runs --
+which the goal rate in the training log is not.
 
 ### Six for six
 

@@ -1,0 +1,5 @@
+n = 24 runs; outcome = self-play goal%, continuous
+  corr(V,-Phi) @0.25M (was primary)    Spearman -0.544   p = 0.0075
+  E1 corr(V,-Phi) @ step 0             Spearman -0.254   p = 0.2303
+  E2 critic output sd                  Spearman -0.202   p = 0.3369
+  E3 actor saturation                  Spearman +0.098   p = 0.6499
