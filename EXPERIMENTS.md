@@ -101,6 +101,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | screen-puckpos | `+ puck_position_rate=0.001` on top of proximity_rate, 8 seeds | 3M x 8 | 13.8 -> 13.2, p=0.92 | **fail** -- adds nothing; seeds 10 and 12 stuck in every arm |
 | seed-split | init_seed x seed grid, {10,12} vs {11,17}, 16 fresh runs | 3M x 16 | weights +7.9 (p=0.001), experience +2.8 (p=0.34) | **starting weights decide** -- bad inits stuck 8/8 |
 | init-survey | 24 starting networks, one game stream, no shaping | 3M x 24 | primary AUC 0.73, p=0.063 | **fail** (narrow, right direction); post-hoc continuous rho=-0.54, p=0.008 -- needs confirming |
+| init-confirm | 24 fresh networks, continuous test pre-registered | 3M x 24 | rho = -0.37, p = 0.073 | **fail** (narrow, right direction again); filter keeps 90% of healthy, catches 50% of stuck |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -672,6 +673,46 @@ pre-registered.
 If it holds up, it is also practically useful: 250k steps is about fifteen
 seconds of training, so it would be a cheap early filter for doomed runs --
 which the goal rate in the training log is not.
+
+### init-confirm: a real but weak signal, not confirmed
+
+Pre-registered replication of init-survey's post-hoc result on 24 networks it
+had never seen (`analysis/init_confirm.py`, committed before any run; the
+measurement functions are imported from the survey, not copied). Run after an
+environment reset on a newer stack (torch 2.14.1, numpy 2.4.6).
+
+| test | result | |
+|---|---|---|
+| **PRIMARY: Spearman(alignment at 250k, goal%)** | **rho = -0.372, p = 0.073** | **fail** |
+| S1: survey's binary test (AUC) | 0.800, p = 0.012 | secondary |
+| S2: out-of-sample filter, cutoff 0.46 fixed from the survey | catches 7/14 stuck (50%), keeps 9/10 healthy (90%) | secondary |
+| S3: pooled survey + confirmation, n = 48 | rho = -0.451, p = 0.0013 | secondary |
+
+14 of 24 stuck (58%; the survey had 46%).
+
+**Verdict: not confirmed.** Two pre-registered tests of this question have now
+each missed the bar narrowly (p = 0.063, then 0.073), with the direction right
+both times. In each, the form that was *not* primary happened to clear it.
+That is the signature of a real but modest effect tested at too small an n,
+not of a strong one -- and not of nothing either. The pooled n = 48 figure is
+the best summary of size (rho about -0.45, so roughly a fifth of the variance
+in outcome), but it includes the data that suggested the hypothesis, so it is
+not independent evidence and does not overturn either verdict. Detecting
+rho = -0.4 reliably (80% power) needs about 47 fresh runs.
+
+What it means:
+
+- **The critic race explains part of why bad starting weights fail -- a
+  minority of it.** Most of what makes a starting network bad is still
+  unexplained.
+- **As an early filter it is conservative but real.** Out of sample, cutting at
+  0.46 after ~15 s of training lost one healthy run in ten and caught half the
+  doomed ones, taking the stuck share of the surviving runs from 58% to 44%
+  (7 of 16). That helps at the margin; it is not a fix.
+- **A correlation cannot settle cause.** The direct test of whether the race
+  matters is to intervene -- slow the critic in the first few hundred thousand
+  steps so it cannot cancel the shaping early -- with the same starting
+  weights in both arms.
 
 ### Six for six
 

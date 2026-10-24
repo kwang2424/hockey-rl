@@ -1,0 +1,31 @@
+ init  goal%   fate  corr@250k  filter says
+  120   21.1     ok      0.448         keep
+  121    2.5  STUCK      0.655        stuck
+  122   14.2     ok      0.154         keep
+  123   11.2     ok      0.414         keep
+  124    2.0  STUCK      0.427         keep
+  125   10.6     ok      0.348         keep
+  126   12.8     ok      0.252         keep
+  127    2.0  STUCK      0.396         keep
+  128    2.0  STUCK      0.253         keep
+  129    5.7     ok      0.144         keep
+  130    3.5  STUCK      0.324         keep
+  131    9.5     ok      0.180         keep
+  132    4.9  STUCK      0.431         keep
+  133    2.5  STUCK      0.363         keep
+  134    3.0  STUCK      0.594        stuck
+  135    5.4     ok      0.637        stuck
+  136    4.0  STUCK      0.594        stuck
+  137    5.8     ok      0.324         keep
+  138    4.5  STUCK      0.392         keep
+  139    2.0  STUCK      0.505        stuck
+  140    5.4     ok      0.027         keep
+  141    3.5  STUCK      0.741        stuck
+  142    3.5  STUCK      0.484        stuck
+  143    3.0  STUCK      0.486        stuck
+
+stuck 14/24
+PRIMARY  Spearman(corr@250k, goal%) = -0.372, p = 0.0734  ->  FAIL
+S1  binary AUC = 0.800, p = 0.0123
+S2  filter (corr >= 0.46, fixed from survey): catches 50% of stuck (7/14), keeps 90% of healthy (9/10)
+S3  pooled Spearman (n = 48) = -0.451, p = 0.0013
