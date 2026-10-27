@@ -97,6 +97,20 @@ class PPOConfig:
     # when a seed produces a dead run, is it the starting weights or the early
     # experience? Unset, or equal to `seed`, it is bit-identical to before.
     init_seed: int = -1
+    # Slow the critic for an initial window: its learning rate is multiplied
+    # by critic_lr_scale until global_step reaches critic_warmup_steps, then
+    # it rejoins the actor's. Off by default (1.0 / 0).
+    #
+    # The causal test of the "race": runs whose critic absorbs -Phi early lose
+    # the shaping's gradient and tend to get stuck (Spearman about -0.4 over
+    # two experiments, not confirmed at the pre-registered bar). A correlation
+    # cannot say whether the race causes the failure. Holding the critic back
+    # so it cannot cancel the shaping early, with the starting weights held
+    # fixed, can. The cost it carries -- a worse baseline, so noisier
+    # advantages, during the window -- means a null result is ambiguous and a
+    # positive one is not.
+    critic_lr_scale: float = 1.0
+    critic_warmup_steps: int = 0
     device: str = "cpu"
     out_dir: str = "runs/v0"
 
@@ -112,7 +126,15 @@ class PPOTrainer:
         self.device = torch.device(self.p.device)
         self.env = VecHockeyEnv(self.p.num_envs, cfg=cfg, seed=self.p.seed)
         self.net = self._initial_net()
-        self.opt = torch.optim.Adam(self.net.parameters(), lr=self.p.lr, eps=1e-5)
+        if self._critic_knob_on():
+            critic = list(self.net.critic.parameters())
+            ids = {id(q) for q in critic}
+            main = [q for q in self.net.parameters() if id(q) not in ids]
+            self.opt = torch.optim.Adam([{"params": main, "name": "main"},
+                                         {"params": critic, "name": "critic"}],
+                                        lr=self.p.lr, eps=1e-5)
+        else:
+            self.opt = torch.optim.Adam(self.net.parameters(), lr=self.p.lr, eps=1e-5)
         self.norm = RunningNorm(OBS_DIM)
 
         self.pool = []                                    # frozen state_dicts
@@ -127,6 +149,20 @@ class PPOTrainer:
         self.history = []
 
     # ------------------------------------------------------------------
+    def _critic_knob_on(self):
+        return self.p.critic_lr_scale != 1.0 and self.p.critic_warmup_steps > 0
+
+    def set_lr(self, frac=1.0):
+        """Set every group's learning rate to frac * lr, scaling the critic's
+        while it is inside its warm-up window. The one place learning rates
+        are written, so the scale cannot be silently overwritten."""
+        for g in self.opt.param_groups:
+            lr = frac * self.p.lr
+            if (g.get("name") == "critic"
+                    and self.global_step < self.p.critic_warmup_steps):
+                lr *= self.p.critic_lr_scale
+            g["lr"] = lr
+
     def _initial_net(self):
         """Build the network, drawing its weights from init_seed if one is set.
 

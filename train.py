@@ -284,9 +284,9 @@ def main():
     for update in range(start_update, n_updates + 1):
         trainer.update = update
         if p.anneal_lr:
-            frac = 1.0 - (update - 1) / n_updates
-            for g in trainer.opt.param_groups:
-                g["lr"] = frac * p.lr
+            trainer.set_lr(1.0 - (update - 1) / n_updates)
+        else:
+            trainer.set_lr(1.0)
 
         curriculum = trainer.set_curriculum((update - 1) / n_updates)
         batch, rstats = trainer.collect()

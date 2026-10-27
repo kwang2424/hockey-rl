@@ -345,3 +345,51 @@ def test_init_seed_unset_or_equal_is_bit_identical():
     w2 = _weights(_trainer(seed=12, init_seed=-1)); s2 = T.rand(5)
     assert torch.equal(w0, w1) and torch.equal(w0, w2)
     assert torch.equal(s0, s1) and torch.equal(s0, s2)
+
+
+def _knob_trainer(scale=1.0, warm=0):
+    from hockey.config import DEFAULT
+    return PPOTrainer(PPOConfig(num_envs=4, rollout_steps=8, seed=3,
+                                critic_lr_scale=scale, critic_warmup_steps=warm), DEFAULT)
+
+
+def test_critic_knob_off_keeps_a_single_param_group():
+    assert len(_knob_trainer().opt.param_groups) == 1
+
+
+def test_critic_lr_is_scaled_only_inside_the_warmup_window():
+    tr = _knob_trainer(0.1, 1000)
+    tr.set_lr(1.0)
+    lrs = {g["name"]: g["lr"] for g in tr.opt.param_groups}
+    assert lrs["main"] == pytest.approx(tr.p.lr)
+    assert lrs["critic"] == pytest.approx(0.1 * tr.p.lr)
+    tr.global_step = 1000
+    tr.set_lr(0.5)
+    lrs = {g["name"]: g["lr"] for g in tr.opt.param_groups}
+    assert lrs["main"] == pytest.approx(0.5 * tr.p.lr)
+    assert lrs["critic"] == pytest.approx(0.5 * tr.p.lr)
+
+
+def test_critic_knob_slows_the_critic_and_leaves_the_actor_alone():
+    """Same weights, same gradients, one optimiser step: the actor moves
+    identically, the critic moves a tenth as far (Adam's first step is
+    lr-sized per parameter)."""
+    off, on = _knob_trainer(), _knob_trainer(0.1, 1000)
+    for tr in (off, on):
+        tr.set_lr(1.0)
+    g = torch.Generator().manual_seed(0)
+    grads = [torch.randn(q.shape, generator=g) for q in off.net.parameters()]
+    before = [q.detach().clone() for q in off.net.parameters()]
+    for tr in (off, on):
+        for q, gr in zip(tr.net.parameters(), grads):
+            q.grad = gr.clone()
+        tr.opt.step()
+    crit = {id(q) for q in off.net.critic.parameters()}
+    for q_off, q_on, b in zip(off.net.parameters(), on.net.parameters(), before):
+        d_off, d_on = q_off.detach() - b, q_on.detach() - b
+        if id(q_off) in crit:
+            # rtol 1e-2: a step is measured as (new - old) on float32 weights,
+            # which keeps only ~3-4 significant digits of a 3e-5-sized move.
+            assert torch.allclose(d_on, 0.1 * d_off, rtol=1e-2, atol=1e-9)
+        else:
+            assert torch.equal(d_on, d_off)
