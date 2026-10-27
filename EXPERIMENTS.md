@@ -315,8 +315,11 @@ ratings -0.589 and -0.608. There is no effect here to argue about.
 
 #### The control moved more than the treatment did
 
-This is the part worth keeping. `exp-sigma-ctl` is the same config and the same
-seed as `exp-100m`, on a different container. It behaved very differently:
+~~This is the part worth keeping. `exp-sigma-ctl` is the same config and the same
+seed as `exp-100m`, on a different container.~~ *Correction (see "The reproducibility checks were broken"):* they were **not** the
+same config: exp-100m trained for 100M steps and exp-sigma-ctl for 50M, and the
+learning rate anneals over the whole run, so at 40M one was at 60 percent of
+the base rate and the other at 20. The two runs did behave very differently:
 
 | at 40M | exp-100m | exp-sigma-ctl |
 |---|---|---|
@@ -325,8 +328,9 @@ seed as `exp-100m`, on a different container. It behaved very differently:
 
 So the sigma inflation that motivated this whole experiment was less than half
 as severe in the fresh control, and the skill trajectory was worse by a margin
-far larger than the treatment effect being tested. Same knobs, same seed,
-different box.
+far larger than the treatment effect being tested. ~~Same knobs, same seed,
+different box.~~ Different learning-rate schedules, so this was never a clean
+measure of run-to-run variance; exp-seeds below measured that properly.
 
 Two consequences:
 
@@ -614,9 +618,13 @@ weights are necessary but not sufficient -- three of eight good-weight cells
 still stuck, two of them on env stream 10.
 
 The diagonal reproduced the old fates exactly on new hardware (10 and 12
-stuck, 11 and 17 not), after a container restart that changed the floating-
+stuck, 11 and 17 not)~~, after a container restart that changed the floating-
 point trajectory of every run. So fate is not float-level luck; it is carried
-by the initial weights robustly. No restart occurred during the grid (uptime
+by the initial weights robustly~~. *Correction (see "The reproducibility checks were broken"):* there is no evidence the restart
+changed anything -- training turned out to be bit-reproducible across these
+machines -- so the matching diagonal shows determinism, not robustness. The
+robustness that does stand is the grid itself: starting weights 10 and 12 were
+stuck under four different game streams. No restart occurred during the grid (uptime
 rose monotonically across all sixteen runs).
 
 What the bad weights carry is not visible at step zero. Initial action means
@@ -637,8 +645,9 @@ Twenty-four starting networks (the grid's four plus 100-119), all on the same
 game stream, no shaping, 3M steps -- only the weights vary. The analysis script
 (`analysis/init_survey.py`) was committed before any survey run existed.
 11 of 24 got stuck (46%). The four known networks kept their fates on a third
-machine (10 and 12 stuck, 11 and 17 not), so weights-decide-fate is robust
-across hardware.
+machine (10 and 12 stuck, 11 and 17 not)~~, so weights-decide-fate is robust
+across hardware~~. *Correction (see "The reproducibility checks were broken"):* that is what determinism predicts, not evidence of
+robustness.
 
 | predictor | AUC (stuck vs ok) | p | |
 |---|---|---|---|
@@ -769,8 +778,44 @@ learning fine, plausibly through the noisier baseline. Neither stratum effect
 is significant on its own, so the race being a cause for some stuck runs is
 suggestive, not established.
 
-Fate reproduced 12/12 again, in a fourth setting (new machine and software
-stack): weights decide fate, very robustly.
+~~Fate reproduced 12/12 again, in a fourth setting (new machine and software
+stack): weights decide fate, very robustly.~~ *Correction (see "The reproducibility checks were broken"):* wrong twice -- it was the
+same software stack as init-confirm (torch 2.14.1, numpy 2.4.6), and a match
+is what bit-reproducible training predicts, not evidence of robustness.
+
+### The reproducibility checks were broken
+
+Several entries above say training stopped being bit-reproducible after a
+container restart or a hardware change. **That was never shown.** Each check
+compared a short run (250k-500k steps) against a stored run of a different
+total length (3M, 50M or 100M). The learning rate anneals over the *whole*
+run -- `lr * (1 - (update-1)/n_updates)` -- so two runs of different length
+have identical first updates and different ones from update 2 on, on any
+machine. That is exactly what every check showed: update 1 identical, update 2
+different.
+
+The direct test, done properly: the 3M-step control runs of critic-slow and of
+critic-slow-250k, on two different containers either side of a restart, are
+identical in every logged value for all 122 updates, for every network
+checked.
+
+What this changes:
+
+- **exp-sigma's "same config, same seed, different box" was false.** exp-100m
+  (100M steps) and exp-sigma-ctl (50M) had different learning-rate schedules.
+  Its conclusion -- single runs vary a lot -- was right, but it is exp-seeds,
+  comparing equal-length runs, that establishes it.
+- **"Fate survives hardware changes" (seed-split, init-survey, critic-slow) is
+  unsupported.** Matching fates are what determinism predicts. What does stand
+  is that bad starting weights stayed stuck under four different game streams.
+- **Several commit messages repeat the wrong reason** (b94939f, the seed-split
+  commit, and the critic-slow-250k pre-registration among them). History is
+  not rewritten; this entry is the correction.
+
+What it does not change: every neutrality check (old code vs new code) used
+identical arguments on both sides and stands; and every place I re-ran
+controls instead of reusing them was merely more expensive than necessary,
+never wrong.
 
 ### Six for six
 
@@ -822,6 +867,10 @@ concluding the setup is at fault.
   planned as 90 minutes concurrent would in fact have taken about 25 hours;
   run the arms sequentially instead, which costs exactly the sum and nothing
   more.
+- **A reproducibility check must use the same `--total-steps` as the run it
+  is compared against.** The learning rate anneals over the whole run, so a
+  shorter run diverges from update 2 regardless of hardware. Training here is
+  bit-reproducible across containers when that is respected.
 - Single-seed results at 1M steps are noise. A reward change once looked like
   a 3.3x goal-rate win on seed 0 and vanished across three seeds.
 - Short runs cannot test slow bugs. The mean-saturation failure took tens of

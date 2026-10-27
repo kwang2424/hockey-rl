@@ -11,10 +11,14 @@ recorded by laddering a changed run against an unchanged one and reading the
 goal share. None of them had an error bar, so none of them could distinguish
 "this change did something" from "these are two runs".
 
-That gap stopped being hypothetical: exp-sigma-ctl and exp-100m are the same
-config and the same seed on different containers, and at 40M one beat v2 77-54
-while the other lost 34-59. If same-config runs can differ by that much, a
-verdict needs to clear that much before it means anything.
+That gap stopped being hypothetical in exp-seeds: runs of the identical
+config, differing only in seed, went as far apart as 100-32 head to head. If
+same-config runs can differ by that much, a verdict needs to clear that much
+before it means anything. (An earlier version of this docstring cited
+exp-sigma-ctl vs exp-100m as "the same config on different containers". They
+were not the same config: different total_steps, so different annealed
+learning-rate schedules. See the reproducibility correction in
+EXPERIMENTS.md.)
 
 So: take N runs that differ only by seed, play their same-milestone snapshots
 against each other, and report the spread of goal share. Anything inside that
