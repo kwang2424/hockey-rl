@@ -1,0 +1,22 @@
+ init  before | ctl goal% trt goal% | ctl corr trt corr
+  121   stuck |       2.5       3.0 |    0.655    0.643
+  124   stuck |       2.0       2.0 |    0.427    0.156
+  127   stuck |       2.0       2.0 |    0.396    0.453
+  128   stuck |       2.0       2.0 |    0.253    0.180
+  133   stuck |       2.5       2.0 |    0.363    0.102
+  139   stuck |       2.0      35.6 |    0.505    0.347
+  141   stuck |       3.5       5.3 |    0.741    0.413
+  143   stuck |       3.0      14.1 |    0.486    0.344
+  120      ok |      21.1       4.0 |    0.448    0.212
+  122      ok |      14.2       3.5 |    0.154    0.252
+  123      ok |      11.2       2.0 |    0.414    0.392
+  126      ok |      12.8      14.3 |    0.252    0.235
+
+MANIPULATION CHECK  alignment trt - ctl = -0.114, p = 0.0190  -> PASS
+PRIMARY             goal%     trt - ctl = +0.92 points, p = 0.8164  -> FAIL
+verdict: NULL, and ambiguous: alignment fell but outcomes did not detectably improve
+rescues: 3/8 control-stuck runs [139, 141, 143]
+harms:   3/4 control-ok runs [120, 122, 123]
+control reproduces init-confirm fate: 12/12
+previously stuck (8)     mean change +5.81 points (1M window: +2.9), sign-flip p = 0.125   per pair ['+0.5', '+0.0', '+0.0', '+0.0', '-0.5', '+33.6', '+1.8', '+11.1']
+previously healthy (4)   mean change -8.84 points (1M window: -7.6), sign-flip p = 0.250   per pair ['-17.1', '-10.7', '-9.1', '+1.5']

@@ -103,6 +103,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | init-survey | 24 starting networks, one game stream, no shaping | 3M x 24 | primary AUC 0.73, p=0.063 | **fail** (narrow, right direction); post-hoc continuous rho=-0.54, p=0.008 -- needs confirming |
 | init-confirm | 24 fresh networks, continuous test pre-registered | 3M x 24 | rho = -0.37, p = 0.073 | **fail** (narrow, right direction again); filter keeps 90% of healthy, catches 50% of stuck |
 | critic-slow | critic lr x0.1 for first 1M steps, 12 paired networks | 3M x 24 | -0.6 points, p = 0.76 | **null, ambiguous** -- manipulation worked; helps stuck runs, hurts healthy ones |
+| critic-slow-250k | same, critic slowed for the first 250k steps only | 3M x 24 | +0.9 points, p = 0.82 | **null** -- the short window did not shed the harm (healthy -8.8 vs -7.6) |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -782,6 +783,58 @@ suggestive, not established.
 stack): weights decide fate, very robustly.~~ *Correction (see "The reproducibility checks were broken"):* wrong twice -- it was the
 same software stack as init-confirm (torch 2.14.1, numpy 2.4.6), and a match
 is what bit-reproducible training predicts, not evidence of robustness.
+
+### critic-slow-250k: a shorter window does not shed the harm
+
+Hypothesis: critic-slow's harm to healthy networks came from holding the
+critic back for 1M steps when the race is settled within ~250k, so a 250k
+window would keep the gain and shed the cost. Identical design otherwise; the
+verdict script `analysis/critic_slow.py` unchanged, plus a stratum script
+committed before any run.
+
+| network | before | control | slowed 250k | (slowed 1M, critic-slow) |
+|---|---|---|---|---|
+| 121 | stuck | 2.5 | 3.0 | 5.4 |
+| 124 | stuck | 2.0 | 2.0 | 5.4 |
+| 127 | stuck | 2.0 | 2.0 | 2.0 |
+| 128 | stuck | 2.0 | 2.0 | 12.7 |
+| 133 | stuck | 2.5 | 2.0 | 2.0 |
+| 139 | stuck | 2.0 | **35.6** | 10.5 |
+| 141 | stuck | 3.5 | 5.3 | 3.0 |
+| 143 | stuck | 3.0 | **14.1** | 2.0 |
+| 120 | ok | 21.1 | **4.0** | 7.8 |
+| 122 | ok | 14.2 | **3.5** | 8.6 |
+| 123 | ok | 11.2 | **2.0** | 2.0 |
+| 126 | ok | 12.8 | 14.3 | 10.4 |
+
+| | result |
+|---|---|
+| manipulation check | -0.114, p = 0.019, **pass** (identical to critic-slow: the two treatments are the same for the first 250k steps) |
+| **primary** | **+0.92 points, p = 0.82 -- fail** |
+| previously stuck (8) | +5.8 points (1M: +2.9), p = 0.125 -- almost all from 139 and 143; five of eight did not move |
+| previously healthy (4) | **-8.8 points** (1M: -7.6), p = 0.25 -- three of four became stuck |
+
+**Verdict: null, and the hypothesis is not supported.** The short window did
+not shed the cost; it was, if anything, larger. So the harm is not a long
+noisy-baseline window.
+
+**A pattern worth recording, explicitly post hoc.** Across both critic-slow
+experiments, 7 of 16 previously-stuck runs ended up healthy and 4 of 8
+previously-healthy runs ended up stuck. The base stuck rate in init-confirm,
+where these networks came from, was 58% -- so a fresh, independent draw
+would turn a stuck run healthy about 42% of the time and a healthy run stuck
+about 58% of the time. The observed 44% and 50% are close to that. That is
+what it looks like if slowing the critic does not fix anything, but
+**re-rolls** each run's fate: the starting weights stop predicting the
+outcome. And the two treatments, identical for the first 250k steps, end
+differently for seven of the twelve networks, so what happens after 250k
+matters as well. Neither point is significant at this n; both say that this
+lever perturbs the failure rather than targeting it.
+
+That contrasts with seed-split, where changing the whole game stream did *not*
+re-roll bad starting weights (stuck under all four streams). Whatever the bad
+weights carry is robust to what the agent sees, and fragile to how its critic
+learns -- a lead, not a finding.
 
 ### The reproducibility checks were broken
 
