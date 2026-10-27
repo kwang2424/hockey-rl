@@ -102,6 +102,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | seed-split | init_seed x seed grid, {10,12} vs {11,17}, 16 fresh runs | 3M x 16 | weights +7.9 (p=0.001), experience +2.8 (p=0.34) | **starting weights decide** -- bad inits stuck 8/8 |
 | init-survey | 24 starting networks, one game stream, no shaping | 3M x 24 | primary AUC 0.73, p=0.063 | **fail** (narrow, right direction); post-hoc continuous rho=-0.54, p=0.008 -- needs confirming |
 | init-confirm | 24 fresh networks, continuous test pre-registered | 3M x 24 | rho = -0.37, p = 0.073 | **fail** (narrow, right direction again); filter keeps 90% of healthy, catches 50% of stuck |
+| critic-slow | critic lr x0.1 for first 1M steps, 12 paired networks | 3M x 24 | -0.6 points, p = 0.76 | **null, ambiguous** -- manipulation worked; helps stuck runs, hurts healthy ones |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -713,6 +714,63 @@ What it means:
   matters is to intervene -- slow the critic in the first few hundred thousand
   steps so it cannot cancel the shaping early -- with the same starting
   weights in both arms.
+
+### critic-slow: holding the critic back helps stuck runs and hurts healthy ones
+
+The causal test of the race. Twelve starting networks from init-confirm (8
+stuck there, 4 healthy), each trained twice back to back on one machine:
+control, and the critic's learning rate x0.1 for the first 1M steps. Same
+starting weights in both arms. Pre-registered in `analysis/critic_slow.py`.
+
+| network | before | control goal% | slowed critic goal% | alignment ctl / trt |
+|---|---|---|---|---|
+| 121 | stuck | 2.5 | 5.4 | 0.655 / 0.643 |
+| 124 | stuck | 2.0 | 5.4 | 0.427 / 0.156 |
+| 127 | stuck | 2.0 | 2.0 | 0.396 / 0.453 |
+| 128 | stuck | 2.0 | **12.7** | 0.253 / 0.180 |
+| 133 | stuck | 2.5 | 2.0 | 0.363 / 0.102 |
+| 139 | stuck | 2.0 | **10.5** | 0.505 / 0.347 |
+| 141 | stuck | 3.5 | 3.0 | 0.741 / 0.413 |
+| 143 | stuck | 3.0 | 2.0 | 0.486 / 0.344 |
+| 120 | ok | 21.1 | 7.8 | 0.448 / 0.212 |
+| 122 | ok | 14.2 | 8.6 | 0.154 / 0.252 |
+| 123 | ok | 11.2 | **2.0** | 0.414 / 0.392 |
+| 126 | ok | 12.8 | 10.4 | 0.252 / 0.235 |
+
+| pre-registered | result | |
+|---|---|---|
+| manipulation check: alignment, trt - ctl | -0.114, p = 0.019 | **pass** -- the critic really was held back |
+| primary: goal%, trt - ctl, 12 pairs | -0.59 points, p = 0.76 | **fail** |
+| rescues (stuck -> ok) | 4/8: 121, 124, 128, 139 | secondary |
+| harms (ok -> stuck) | 1/4: 123 | secondary |
+| control reproduces init-confirm fate | 12/12 | -- |
+
+**Verdict: null, and ambiguous** -- the outcome named in advance as
+uninterpretable on its own, because a slowed critic is also a noisier
+baseline.
+
+The average is flat because the two groups moved in **opposite directions**.
+By pre-registered stratum (secondary, so it does not change the verdict):
+
+| stratum | mean change | sign-flip p |
+|---|---|---|
+| previously stuck (8) | **+2.9 points** | 0.125 |
+| previously healthy (4) | **-7.6 points** | 0.125 (the floor for 4 pairs) |
+
+All four healthy networks got worse. Among the stuck ones, two clear rescues
+(128 to 12.7%, 139 to 10.5%) and two that only just cross the 5% line (121 and
+124 at 5.4%) -- so "4/8 rescued" flatters it; "2 clear, 2 marginal" is
+fairer.
+
+**Reading.** This is the shape the pre-stated ambiguity predicted: a benefit
+and a cost acting at once. Holding the critic back seems to give some stuck
+networks the gradient they were losing, and costs every network that was
+learning fine, plausibly through the noisier baseline. Neither stratum effect
+is significant on its own, so the race being a cause for some stuck runs is
+suggestive, not established.
+
+Fate reproduced 12/12 again, in a fourth setting (new machine and software
+stack): weights decide fate, very robustly.
 
 ### Six for six
 
