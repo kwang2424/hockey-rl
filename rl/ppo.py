@@ -455,6 +455,17 @@ class PPOTrainer:
             # So a resume does not forget which snapshot was best and
             # re-baseline best.pt from the first eval of the new process.
             "best_rating": getattr(self, "best_rating", None),
+            # Everything else a resume needs to continue *exactly* as if it had
+            # never stopped: the game state mid-episode, which opponent each
+            # env is facing, and the two global random streams (action
+            # sampling; minibatch order). Without these a resume continued
+            # from the right weights onto a different trajectory -- harmless
+            # for most uses, but it means a paused run was not the run it
+            # claimed to be the start of.
+            "env_state": copy.deepcopy(self.env.__dict__),
+            "opp_id": self.opp_id.copy(),
+            "torch_rng": torch.get_rng_state(),
+            "np_global_rng": np.random.get_state(),
         }, path)
         return path
 
@@ -471,6 +482,11 @@ class PPOTrainer:
             self.rng.bit_generator.state = ck["rng"]
         if ck.get("best_rating") is not None:
             self.best_rating = float(ck["best_rating"])
+        # Older checkpoints lack these and resume approximately, as before.
+        if "env_state" in ck:
+            self.env.__dict__.update(ck["env_state"])
+        if "opp_id" in ck:
+            self.opp_id = np.asarray(ck["opp_id"]).copy()
         for sd in ck.get("pool", []):
             net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
                               self.p.bounded_mean, self.p.max_log_std)
@@ -478,6 +494,13 @@ class PPOTrainer:
             net.eval()
             self.pool.append(sd)
             self.pool_nets.append(net)
+        # Restore the global streams LAST: rebuilding the pool nets above draws
+        # from the torch generator, and the saved state already accounts for
+        # the draws those nets made when they were first snapshotted.
+        if "torch_rng" in ck:
+            torch.set_rng_state(ck["torch_rng"])
+        if "np_global_rng" in ck:
+            np.random.set_state(ck["np_global_rng"])
         return self.update + 1
 
 

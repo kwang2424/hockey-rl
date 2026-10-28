@@ -211,6 +211,13 @@ def main():
                          "trajectory: best.pt is overwritten, so without this a "
                          "long run only yields an endpoint and cannot show "
                          "whether it was still improving or plateaued early.")
+    ap.add_argument("--stop-at", type=int, default=0, metavar="STEPS",
+                    help="pause once global_step reaches STEPS: latest.pt is saved "
+                         "and final.pt is not written, so a later --resume with the "
+                         "same --total-steps continues exactly as if uninterrupted. "
+                         "For staged screening, where each stage must be the literal "
+                         "start of the long run -- the learning rate anneals over "
+                         "--total-steps, so a separate short run would not be.")
     ap.add_argument("--resume", action="store_true",
                     help="continue from <out>/latest.pt if it exists")
     args = ap.parse_args()
@@ -354,6 +361,13 @@ def main():
                 writer.writeheader()
         writer.writerow(row)
         csv_file.flush()
+
+        if args.stop_at and trainer.global_step >= args.stop_at and update < n_updates:
+            print(f"[train] paused at step {trainer.global_step:,} (--stop-at {args.stop_at:,}); "
+                  f"--resume with the same --total-steps to continue", flush=True)
+            if csv_file:
+                csv_file.close()
+            return
 
     trainer.save(os.path.join(args.out, "final.pt"))
     if csv_file:

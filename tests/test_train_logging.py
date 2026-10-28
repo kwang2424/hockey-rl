@@ -100,3 +100,31 @@ def test_evaluation_does_not_perturb_training(tmp_path):
                       "checkpoints/v6-100m-compute.pt")
     assert two and len(two) == len(four)
     assert two == four
+
+
+def test_pause_and_resume_is_bit_identical_to_an_uninterrupted_run(tmp_path):
+    """--stop-at then --resume must continue exactly, not approximately.
+
+    Staged screening relies on it: each stage has to BE the start of the long
+    run. Before the env state, opponent assignments and global RNG streams
+    were checkpointed, a resume continued from the right weights onto a
+    different trajectory.
+    """
+    common = ["--total-steps", "16000", "--num-envs", "32", "--rollout-steps", "16",
+              "--eval-every", "1000", "--seed", "7", "--set", "pool_prob=0.35"]
+    root = Path(__file__).resolve().parents[1]
+    whole, split = tmp_path / "whole", tmp_path / "split"
+    subprocess.run([sys.executable, "train.py", *common, "--out", str(whole)],
+                   check=True, capture_output=True, cwd=root)
+    subprocess.run([sys.executable, "train.py", *common, "--out", str(split),
+                    "--stop-at", "7000"], check=True, capture_output=True, cwd=root)
+    assert not (split / "final.pt").exists(), "a paused run must not write final.pt"
+    subprocess.run([sys.executable, "train.py", *common, "--out", str(split), "--resume"],
+                   check=True, capture_output=True, cwd=root)
+    a, b = _training_cells(whole / "progress.csv"), _training_cells(split / "progress.csv")
+    assert len(a) == len(b) > 15
+    assert a == b
+    import torch
+    wa = torch.load(whole / "final.pt", weights_only=False)["net"]
+    wb = torch.load(split / "final.pt", weights_only=False)["net"]
+    assert all(torch.equal(wa[k], wb[k]) for k in wa)
