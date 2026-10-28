@@ -104,6 +104,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | init-confirm | 24 fresh networks, continuous test pre-registered | 3M x 24 | rho = -0.37, p = 0.073 | **fail** (narrow, right direction again); filter keeps 90% of healthy, catches 50% of stuck |
 | critic-slow | critic lr x0.1 for first 1M steps, 12 paired networks | 3M x 24 | -0.6 points, p = 0.76 | **null, ambiguous** -- manipulation worked; helps stuck runs, hurts healthy ones |
 | critic-slow-250k | same, critic slowed for the first 250k steps only | 3M x 24 | +0.9 points, p = 0.82 | **null** -- the short window did not shed the harm (healthy -8.8 vs -7.6) |
+| screened-50m (v8) | no config change: 12 starting networks screened at 250k and 3M, best trained to 50M | 50M | 0.534, beats v7 160-64, v6 137-101 | **strongest learned agent so far** (one run; not evidence screening beats training) |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -835,6 +836,52 @@ That contrasts with seed-split, where changing the whole game stream did *not*
 re-roll bad starting weights (stuck under all four streams). Whatever the bad
 weights carry is robust to what the agent sees, and fragile to how its critic
 learns -- a lead, not a finding.
+
+### screened-50m: picking a good starting network, then training it
+
+The workaround the investigation pointed to: since a run's fate is set mostly
+by its starting weights, start several, screen early, and only train the
+survivors. Each stage is the literal start of the long run (`--stop-at`, then
+an exact `--resume`), because the learning rate anneals over the full run
+length and a separate short run would start differently.
+
+| stage | rule | result |
+|---|---|---|
+| 1, at 250k steps | keep critic alignment < 0.46 (cutoff fixed from init-survey) | 5 of 12 kept (alignment 0.18-0.43); 7 dropped (0.48-0.75) |
+| 2, at 3M steps | keep self-play goal% >= 5, take the best | **1 of 5 healthy**: network 203 at 38.4%; the other four 3.5-4.5% |
+| 3 | train network 203 to 50M | done in 64 min |
+
+Stage 2 shows how weak the early filter is: four of its five survivors were
+stuck anyway, in line with init-confirm (it caught half the doomed runs out
+of sample). The two-stage screen still did its job, because stage 2 catches
+what stage 1 misses.
+
+Ladder over 7 entrants, both ends (`ladder-v8.json`):
+
+| rank | entrant | goal share | vs v8 |
+|---|---|---|---|
+| 1 | ChaseBot | 0.875 | 309-57 |
+| 2 | **v8 (network 203, 50M)** | **0.534** | -- |
+| 3 | network 203, rating-selected best.pt | 0.489 | 88-124 |
+| 4 | v6 (exp-100m @70M) | 0.449 | 101-137 |
+| 5 | v7 | 0.377 | 64-160 |
+| 6 | v2 | 0.315 | 61-120 |
+| 7 | random | 0.057 | 15-132 |
+
+v8 is the strongest learned agent in this project and the first to beat every
+earlier checkpoint head to head, on fewer steps than v6. These are
+comparisons between specific networks, so evaluation noise (about +/-0.06) is
+the relevant error, and the margins clear it -- decisively against v7 and v2,
+moderately against v6. It is one run: it shows a same-config lottery can
+produce a network like this, not that screening beats ordinary training on
+average. ChaseBot still wins easily, slightly more easily against v8 than
+against v6 (67-299).
+
+Two smaller observations. Entropy *fell* through this run (2.74 -> 2.50),
+where exp-100m's climbed until shooting was a coin flip. And the end-of-run
+network beat the checkpoint the rating selected (124-88): the anchored rating
+is far better than goal difference against ChaseBot, but it is a noisy
+one-ended estimate, not a ladder.
 
 ### The reproducibility checks were broken
 

@@ -1,0 +1,141 @@
+{
+  "table": [
+    {
+      "name": "chase",
+      "goals_for": 1975,
+      "goals_against": 281,
+      "goal_share": 0.8754,
+      "goal_diff": 1694
+    },
+    {
+      "name": "init-203/final",
+      "goals_for": 730,
+      "goals_against": 638,
+      "goal_share": 0.5336,
+      "goal_diff": 92
+    },
+    {
+      "name": "init-203/best",
+      "goals_for": 638,
+      "goals_against": 666,
+      "goal_share": 0.4893,
+      "goal_diff": -28
+    },
+    {
+      "name": "v6-100m-compute",
+      "goals_for": 572,
+      "goals_against": 701,
+      "goal_share": 0.4493,
+      "goal_diff": -129
+    },
+    {
+      "name": "v7-seed4-50m",
+      "goals_for": 465,
+      "goals_against": 768,
+      "goal_share": 0.3771,
+      "goal_diff": -303
+    },
+    {
+      "name": "v2-control-gated-reward",
+      "goals_for": 353,
+      "goals_against": 769,
+      "goal_share": 0.3146,
+      "goal_diff": -416
+    },
+    {
+      "name": "random",
+      "goals_for": 58,
+      "goals_against": 968,
+      "goal_share": 0.0565,
+      "goal_diff": -910
+    }
+  ],
+  "pairs": {
+    "init-203/final vs init-203/best": [
+      124,
+      88
+    ],
+    "init-203/final vs v7-seed4-50m": [
+      160,
+      64
+    ],
+    "init-203/final vs v6-100m-compute": [
+      137,
+      101
+    ],
+    "init-203/final vs v2-control-gated-reward": [
+      120,
+      61
+    ],
+    "init-203/final vs chase": [
+      57,
+      309
+    ],
+    "init-203/final vs random": [
+      132,
+      15
+    ],
+    "init-203/best vs v7-seed4-50m": [
+      141,
+      47
+    ],
+    "init-203/best vs v6-100m-compute": [
+      114,
+      95
+    ],
+    "init-203/best vs v2-control-gated-reward": [
+      115,
+      68
+    ],
+    "init-203/best vs chase": [
+      58,
+      322
+    ],
+    "init-203/best vs random": [
+      122,
+      10
+    ],
+    "v7-seed4-50m vs v6-100m-compute": [
+      97,
+      70
+    ],
+    "v7-seed4-50m vs v2-control-gated-reward": [
+      122,
+      39
+    ],
+    "v7-seed4-50m vs chase": [
+      33,
+      349
+    ],
+    "v7-seed4-50m vs random": [
+      102,
+      9
+    ],
+    "v6-100m-compute vs v2-control-gated-reward": [
+      96,
+      45
+    ],
+    "v6-100m-compute vs chase": [
+      67,
+      299
+    ],
+    "v6-100m-compute vs random": [
+      143,
+      9
+    ],
+    "v2-control-gated-reward vs chase": [
+      62,
+      305
+    ],
+    "v2-control-gated-reward vs random": [
+      78,
+      11
+    ],
+    "chase vs random": [
+      391,
+      4
+    ]
+  },
+  "envs": 96,
+  "steps": 400
+}

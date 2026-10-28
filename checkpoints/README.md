@@ -11,6 +11,7 @@ are measured from them and are otherwise unreproducible.
 | `v3-bounded-mean.pt` | 30.0M | + policy mean squashed into the action range | -6.98 /min |
 | `v6-100m-compute.pt` | 70.0M | **no change at all** -- same setup, more steps | -5.16 /min |
 | `v7-seed4-50m.pt` | 50.0M | same config again, seed 4 -- the strongest of twelve runs | -4.98 /min |
+| `v8-screened-50m.pt` | 50.0M | **same config**, starting network chosen by two-stage screening (init_seed 203, seed 17) | -- (see ladder) |
 
 `v6` is by a clear margin the strongest, and the only one that beats `v2`
 head-to-head (98-38). Nothing about the reward, network or hyperparameters
@@ -21,6 +22,15 @@ with it, so the specific snapshot is close to arbitrary within that band.
 
 Among the older three, `v3` is strongest: it beats `v0` 67-39 with ends
 swapped, and ties `v2` (65-81, CI includes 0.5).
+
+`v8` is the strongest learned checkpoint, and the first to beat every earlier
+one head to head: v7 160-64, v6 137-101, v2 120-61 (`ladder-v8.json`). Those
+are comparisons between specific trained networks, where evaluation noise is
+the relevant error (about +/-0.06 in goal share), and the margins clear it. It
+is NOT evidence that screening beats ordinary training: it is one run, picked
+from twelve starting networks (stage 1 kept 5 of 12 on early critic
+alignment, stage 2 found 1 of those 5 healthy at 3M steps). It still loses
+heavily to the scripted ChaseBot, 57-309.
 
 `v7` beats `v6` 97-70, and that is **not** evidence it is better. One pairing
 at 0.581 goal share sits inside the band two runs of the *same* config produce
