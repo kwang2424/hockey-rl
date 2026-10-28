@@ -105,6 +105,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | critic-slow | critic lr x0.1 for first 1M steps, 12 paired networks | 3M x 24 | -0.6 points, p = 0.76 | **null, ambiguous** -- manipulation worked; helps stuck runs, hurts healthy ones |
 | critic-slow-250k | same, critic slowed for the first 250k steps only | 3M x 24 | +0.9 points, p = 0.82 | **null** -- the short window did not shed the harm (healthy -8.8 vs -7.6) |
 | screened-50m (v8) | no config change: 12 starting networks screened at 250k and 3M, best trained to 50M | 50M | 0.534, beats v7 160-64, v6 137-101 | **strongest learned agent so far** (one run; not evidence screening beats training) |
+| puck-finetune | fine-tune v8 20M: control / possession_rate=0.0008 / puck_goal_speed_rate=0.01 | 20M x 3 | possession 0.033-0.034 s in every arm | **null** -- the habit shuts off its own exploration; it forms between 250k and 3M steps |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -882,6 +883,41 @@ where exp-100m's climbed until shooting was a coin flip. And the end-of-run
 network beat the checkpoint the rating selected (124-88): the anchored rating
 is far better than goal difference against ChaseBot, but it is a noisy
 one-ended estimate, not a ladder.
+
+### puck-finetune: rewards cannot unteach the fire-on-contact habit
+
+v8 fires on 99% of the steps it holds the puck; possessions last one control
+step; 2% of its shots are on target (ChaseBot: 1%, 17 steps, 87%). Its shoot
+output while holding averages +3.66 against a firing threshold of 0 -- a
+learned preference. Three arms fine-tuned from v8 for 20M steps (lr 1e-4),
+one setting apart, analysis pre-registered in `analysis/puck_screen.py`:
+
+| arm | holding | fires while holding | on target | vs control |
+|---|---|---|---|---|
+| control | 0.034 s | 98.8% | 4.0% | -- |
+| possession_rate = 0.0008 | 0.033 s | 100% | 2.7% | 116-105 |
+| puck_goal_speed_rate = 0.01 | 0.034 s | 98.3% | 2.7% | 112-111 |
+
+**Null: neither arm moved the behaviour at all**, and skill is within noise.
+
+Why, in numbers: holding with a shoot mean of +3.66 and a spread of 1.35, the
+chance of sampling "do not fire" is under 1% per step (1.2% measured). A reward
+for holding is only collected on that 1%, so the learner has almost nothing
+to compare firing against. The habit has shut off its own exploration. This
+says rewards cannot unteach it at this scale -- not that they would fail from
+scratch.
+
+When it forms, from saved snapshots:
+
+| network | fires while holding |
+|---|---|
+| network 200 at 250k steps | 57% -- close to an untrained network's coin flip |
+| network 200 at 3M | 100% |
+| network 203 (v8's run) at 5M / 20M | 99% / 100% |
+
+**The habit locks in between 250k and 3M steps.** That is the window in which a
+holding or aiming reward has to act, while both actions are still being
+tried -- and a 3M-step run from scratch is enough to see whether it does.
 
 ### The reproducibility checks were broken
 

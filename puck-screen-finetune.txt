@@ -1,0 +1,20 @@
+arm   possession s  fire-while-holding  on target  shots  goals/min
+ctl          0.034               0.988       4.0%    250       2.60
+poss         0.033               1.000       2.7%    300       2.51
+aim          0.034               0.983       2.7%    296       2.67
+
+ladder:
+  chase                              share 0.859
+  poss/final                         share 0.414
+  aim/final                          share 0.370
+  v8-screened-50m                    share 0.357
+  ctl/final                          share 0.339
+
+head to head:
+  ctl   vs poss: 105-116   vs aim: 111-112   vs v8: 95-108   vs chase: 37-342
+  poss  vs ctl: 116-105   vs aim: 114-96   vs v8: 126-96   vs chase: 64-298
+  aim   vs ctl: 112-111   vs poss: 96-114   vs v8: 130-106   vs chase: 52-333
+
+verdicts:
+  poss  HOLDS False  AIMS False  NOT-HOARDING True  SKILL True (116-105 vs ctl, share 0.525)  ->  does not fix puck control
+  aim   HOLDS False  AIMS False  NOT-HOARDING True  SKILL True (112-111 vs ctl, share 0.502)  ->  does not fix puck control
