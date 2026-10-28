@@ -36,6 +36,7 @@
   --crease: #22384a; --puck: #f1f5f8; --light: #f0b53a; color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   background: var(--bg); color: var(--ink); font: 400 16px/1.5 var(--body);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -57,6 +58,11 @@ h1 { font: 800 clamp(30px, 5vw, 46px)/1 var(--display); letter-spacing: .01em; m
 .bug .nm { font: 700 18px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bug .sc { font: 800 26px/1 var(--display); font-variant-numeric: tabular-nums; min-width: 1.2em; text-align: center; }
 .bug .clock { font: 500 15px/1 var(--mono); padding: 0 14px; display: flex; align-items: center; background: var(--ink); color: var(--panel); font-variant-numeric: tabular-nums; }
+@media (max-width: 480px) {
+  .bug .team { padding: 6px 8px; gap: 6px; }
+  .bug .clock, .bug .goal { padding: 0 9px; }
+  .bug .nm { overflow: visible; }
+}
 .bug .goal { font: 800 18px/1 var(--display); letter-spacing: .12em; padding: 0 14px; display: flex; align-items: center; background: var(--light); color: #1a1205; }
 
 canvas { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 6px; background: var(--bg); touch-action: none; }

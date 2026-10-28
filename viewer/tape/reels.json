@@ -1,0 +1,73 @@
+{
+ "footer": "Recorded with <code>hockey.export</code> from checkpoints in the hockey-rl repository. v8 is <code>checkpoints/v8-screened-50m.pt</code>: 50M steps of self-play PPO, its starting network picked from twelve by a two-stage screen. One unselected game per reel (seed 0), 60 seconds each, deterministic actions. Rebuild with <code>viewer/build_tape.py viewer/tape/reels.json</code>.",
+ "reels": [
+  {
+   "id": "self-play",
+   "label": "v8 against itself",
+   "blurb": "Same network on both sides",
+   "a": "checkpoints/v8-screened-50m.pt",
+   "b": "checkpoints/v8-screened-50m.pt",
+   "names": [
+    "v8",
+    "v8"
+   ],
+   "note": [
+    "Both skaters run identical weights, so red's 3–0 is the luck of this particular minute, not one side playing better.",
+    "Watch how it scores. It never holds the puck: the puck is loose 99% of the game. Instead it strikes the puck on contact and drives it at the net in one touch, so most goals come off the first hit after a faceoff or a loose puck."
+   ],
+   "steps": 1800,
+   "seed": 0
+  },
+  {
+   "id": "vs-v6",
+   "label": "v8 against v6",
+   "blurb": "Against the previous best",
+   "a": "checkpoints/v8-screened-50m.pt",
+   "b": "checkpoints/v6-100m-compute.pt",
+   "names": [
+    "v8",
+    "v6"
+   ],
+   "note": [
+    "v6 was the strongest agent before this one and took 70M training steps; v8 took 50M. Over the full ladder v8 wins this matchup 137–101, and this minute goes 4–1.",
+    "Neither side carries the puck, so the game is a race to each loose puck and the direction of the touch. v8 stays a little closer to the puck on average, 10.7 m against 11.9."
+   ],
+   "steps": 1800,
+   "seed": 0
+  },
+  {
+   "id": "vs-chasebot",
+   "label": "v8 against ChaseBot",
+   "blurb": "Against the scripted puck carrier",
+   "a": "checkpoints/v8-screened-50m.pt",
+   "b": "chase",
+   "names": [
+    "v8",
+    "ChaseBot"
+   ],
+   "note": [
+    "ChaseBot is a hand-written script: skate to the puck, pick it up, carry it at the net. It holds the puck 43% of this game. v8 never does.",
+    "That one skill, possession, is the gap the learned agents have not closed. v8 loses this matchup 57–309 over the ladder, and 1–7 here. Watch ChaseBot keep the puck on its stick while v8 skates past it."
+   ],
+   "steps": 1800,
+   "seed": 0
+  },
+  {
+   "id": "stuck",
+   "label": "A stuck network",
+   "blurb": "What a failed run looks like",
+   "a": "checkpoints/stuck-example-3m.pt",
+   "b": "checkpoints/stuck-example-3m.pt",
+   "names": [
+    "Stuck",
+    "Stuck"
+   ],
+   "note": [
+    "Same training setup, different starting weights, and this run never learned to play: 2% goals at 3M steps.",
+    "Both skaters retreat into their own half, about 12 m deep on average, and stay there while the puck sits loose near centre ice. Nobody scores. Somewhere between a third and a half of fresh runs end up like this, and it is what the screening throws away."
+   ],
+   "steps": 1800,
+   "seed": 0
+  }
+ ]
+}
