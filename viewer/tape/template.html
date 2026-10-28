@@ -1,0 +1,373 @@
+<title>hockey-rl Game Tape</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Layout: a broadcast replay board. Score bug over a full-width rink, transport
+   bar under it, reel list and the coach's note beside it; stacks on phones. */
+:root {
+  --bg: #e9eef2;          /* arena concourse */
+  --panel: #f8fafb;
+  --ink: #15202a;
+  --muted: #5a6875;
+  --rule: #cdd6dd;
+  --ice: #f4f8fa;          /* painted ice */
+  --boards: #2b3a46;
+  --paint-red: #d9a3a8;    /* rink paint is pale under arena light */
+  --paint-blue: #a6bfd6;
+  --crease: #d8e7f3;
+  --puck: #11181e;
+  --light: #e3a21a;        /* the goal light: playhead and selection only */
+  --display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1418; --panel: #141d23; --ink: #e5ecf1; --muted: #93a3b0; --rule: #26333c;
+    --ice: #1b262e; --boards: #8aa0b0; --paint-red: #7c4a50; --paint-blue: #3f5b75;
+    --crease: #22384a; --puck: #f1f5f8; --light: #f0b53a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1418; --panel: #141d23; --ink: #e5ecf1; --muted: #93a3b0; --rule: #26333c;
+  --ice: #1b262e; --boards: #8aa0b0; --paint-red: #7c4a50; --paint-blue: #3f5b75;
+  --crease: #22384a; --puck: #f1f5f8; --light: #f0b53a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font: 400 16px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 32px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+h1 { font: 800 clamp(30px, 5vw, 46px)/1 var(--display); letter-spacing: .01em; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0; max-width: 62ch; }
+.board { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+@media (max-width: 880px) { .board { grid-template-columns: minmax(0, 1fr); } }
+.stage { display: grid; gap: 10px; min-width: 0; }
+
+/* score bug */
+.bug { display: flex; align-items: stretch; border-radius: 4px; overflow: hidden; background: var(--boards); color: var(--bg); width: fit-content; max-width: 100%; }
+.bug .team { display: flex; align-items: center; gap: 10px; padding: 6px 12px; min-width: 0; }
+.bug .chip { width: 10px; align-self: stretch; }
+.bug .nm { font: 700 18px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bug .sc { font: 800 26px/1 var(--display); font-variant-numeric: tabular-nums; min-width: 1.2em; text-align: center; }
+.bug .clock { font: 500 15px/1 var(--mono); padding: 0 14px; display: flex; align-items: center; background: var(--ink); color: var(--panel); font-variant-numeric: tabular-nums; }
+.bug .goal { font: 800 18px/1 var(--display); letter-spacing: .12em; padding: 0 14px; display: flex; align-items: center; background: var(--light); color: #1a1205; }
+
+canvas { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 6px; background: var(--bg); touch-action: none; }
+
+/* transport */
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+button { font: 600 14px/1 var(--body); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 8px 12px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--light); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+#play { min-width: 76px; }
+.speeds { display: flex; gap: 4px; }
+.speeds button { padding: 8px 9px; font-family: var(--mono); font-weight: 500; font-size: 13px; }
+.scrub { position: relative; flex: 1 1 260px; min-width: 0; height: 28px; display: flex; align-items: center; }
+.scrub input { width: 100%; margin: 0; accent-color: var(--light); position: relative; z-index: 1; background: transparent; }
+.marks { position: absolute; inset: 0 8px; pointer-events: none; }
+.marks i { position: absolute; top: 2px; width: 3px; height: 8px; border-radius: 1px; transform: translateX(-1px); }
+.hint { color: var(--muted); font-size: 13px; }
+
+/* reels */
+aside { display: grid; gap: 14px; min-width: 0; }
+.label { font: 700 13px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.reels { display: grid; gap: 6px; }
+.reel { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; text-align: left; padding: 10px 12px; }
+.reel .t { font-weight: 600; }
+.reel .s { font: 500 13px/1.3 var(--mono); font-variant-numeric: tabular-nums; align-self: center; }
+.reel .d { grid-column: 1 / -1; font-size: 13px; color: var(--muted); font-weight: 400; }
+.reel[aria-pressed="true"] .d { color: inherit; opacity: .8; }
+.note { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; }
+.note p { margin: 0 0 10px; }
+.note p:last-child { margin: 0; }
+.stats { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; align-items: center; font-size: 14px; }
+.bar { height: 8px; border-radius: 2px; background: var(--rule); overflow: hidden; display: flex; }
+.bar span { display: block; height: 100%; }
+.num { font: 500 13px/1 var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+footer { color: var(--muted); font-size: 13px; max-width: 80ch; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>hockey-rl Game Tape</h1>
+    <p class="sub">Replays of agents trained by self-play reinforcement learning on a 60 × 26 m rink. One skater a side, no goalie: positions, stick and puck as the simulator recorded them, 30 frames a second.</p>
+  </header>
+
+  <div class="board">
+    <section class="stage" aria-label="Replay">
+      <div class="bug" aria-live="polite">
+        <div class="team"><span class="chip" id="chipA"></span><span class="nm" id="nameA">A</span><span class="sc" id="scoreA">0</span></div>
+        <div class="team"><span class="sc" id="scoreB">0</span><span class="nm" id="nameB">B</span><span class="chip" id="chipB"></span></div>
+        <div class="clock" id="clock">0:00.0</div>
+        <div class="goal" id="goal" hidden>GOAL</div>
+      </div>
+      <canvas id="rink" width="1180" height="540" aria-label="Top-down view of the rink"></canvas>
+      <div class="transport">
+        <button id="play" aria-pressed="false">Play</button>
+        <div class="scrub">
+          <div class="marks" id="marks"></div>
+          <input id="seek" type="range" min="0" max="1" step="1" value="0" aria-label="Position in the game">
+        </div>
+        <div class="speeds" role="group" aria-label="Playback speed">
+          <button data-speed="0.25" aria-pressed="false">¼×</button>
+          <button data-speed="0.5" aria-pressed="false">½×</button>
+          <button data-speed="1" aria-pressed="true">1×</button>
+          <button data-speed="2" aria-pressed="false">2×</button>
+        </div>
+        <button id="trails" aria-pressed="true">Trails</button>
+      </div>
+      <p class="hint">Space plays and pauses. ← and → step half a second. Ticks on the timeline mark goals, in the scoring team's colour.</p>
+    </section>
+
+    <aside>
+      <div>
+        <p class="label">Reels</p>
+        <div class="reels" id="reels"></div>
+      </div>
+      <div class="note">
+        <p class="label">What to watch</p>
+        <div id="note"></div>
+      </div>
+      <div class="note">
+        <p class="label">This reel</p>
+        <div class="stats" id="stats"></div>
+      </div>
+    </aside>
+  </div>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const TAPE = /*TAPE_JSON*/null;
+
+const $ = (id) => document.getElementById(id);
+const cv = $("rink"), ctx = cv.getContext("2d");
+let reel = 0, frame = 0, playing = false, speed = 1, trails = true, acc = 0, last = 0;
+let pal = {};
+const N = 9; // floats per frame: ax ay ath bx by bth px py possessor
+
+function readPalette() {
+  const s = getComputedStyle(document.documentElement);
+  for (const k of ["ice", "boards", "paint-red", "paint-blue", "crease", "puck", "light", "ink", "muted", "bg"])
+    pal[k] = s.getPropertyValue("--" + k).trim();
+}
+readPalette();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readPalette(); draw(); });
+new MutationObserver(() => { readPalette(); draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+const g = () => TAPE.reels[reel];
+const R = () => TAPE.rink;
+const nFrames = () => g().f.length / N;
+
+/* ---------- geometry ---------- */
+let scale = 10, ox = 0, oy = 0;
+function layout() {
+  const w = cv.clientWidth || 800, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const pad = 0.04 * w;
+  const h = Math.round((w - 2 * pad) * R().width / R().length + 2 * pad);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.height = h + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  scale = (w - 2 * pad) / R().length; ox = w / 2; oy = h / 2;
+}
+const X = (x) => ox + x * scale, Y = (y) => oy - y * scale;
+
+function rinkPath(inset = 0) {
+  const hl = R().length / 2 - inset, hw = R().width / 2 - inset, r = Math.max(R().corner_radius - inset, 0);
+  ctx.beginPath();
+  ctx.moveTo(X(-hl + r), Y(hw));
+  ctx.lineTo(X(hl - r), Y(hw)); ctx.arcTo(X(hl), Y(hw), X(hl), Y(hw - r), r * scale);
+  ctx.lineTo(X(hl), Y(-hw + r)); ctx.arcTo(X(hl), Y(-hw), X(hl - r), Y(-hw), r * scale);
+  ctx.lineTo(X(-hl + r), Y(-hw)); ctx.arcTo(X(-hl), Y(-hw), X(-hl), Y(-hw + r), r * scale);
+  ctx.lineTo(X(-hl), Y(hw - r)); ctx.arcTo(X(-hl), Y(hw), X(-hl + r), Y(hw), r * scale);
+  ctx.closePath();
+}
+function circle(x, y, r, stroke, width, fill) {
+  ctx.beginPath(); ctx.arc(X(x), Y(y), r * scale, 0, Math.PI * 2);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.stroke(); }
+}
+
+function drawRink() {
+  const rk = R(), hw = rk.width / 2, gl = rk.goal_line_x;
+  ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, cv.width, cv.height);
+  rinkPath(); ctx.fillStyle = pal.ice; ctx.fill();
+  ctx.save(); rinkPath(); ctx.clip();
+  const line = (x, col, w) => { ctx.fillStyle = col; ctx.fillRect(X(x) - (w * scale) / 2, Y(hw), w * scale, 2 * hw * scale); };
+  // Markings in IIHF layout: centre red line, blue lines 22.86 m from the end
+  // boards, goal lines 4 m from them, 4.5 m faceoff circles.
+  const blue = rk.length / 2 - 22.86;
+  line(0, pal["paint-red"], 0.3);
+  line(-blue, pal["paint-blue"], 0.3); line(blue, pal["paint-blue"], 0.3);
+  line(-gl, pal["paint-red"], 0.05 * 2); line(gl, pal["paint-red"], 0.05 * 2);
+  circle(0, 0, 4.5, pal["paint-blue"], Math.max(1, 0.05 * scale));
+  circle(0, 0, 0.15, null, 0, pal["paint-blue"]);
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+    circle(sx * (gl - 6), sy * 7, 4.5, pal["paint-red"], Math.max(1, 0.05 * scale));
+    circle(sx * (gl - 6), sy * 7, 0.3, null, 0, pal["paint-red"]);
+  }
+  // creases (1.83 m) open toward centre ice
+  for (const sx of [-1, 1]) {
+    ctx.beginPath();
+    const a0 = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
+    ctx.moveTo(X(sx * gl), Y(1.83));
+    ctx.arc(X(sx * gl), Y(0), 1.83 * scale, a0, a0 + Math.PI, false);
+    ctx.closePath(); ctx.fillStyle = pal.crease; ctx.fill();
+  }
+  ctx.restore();
+  // nets
+  for (const sx of [-1, 1]) {
+    const x0 = X(sx * gl), x1 = X(sx * (gl + rk.goal_depth));
+    ctx.strokeStyle = pal.boards; ctx.lineWidth = Math.max(1.5, 0.08 * scale);
+    ctx.strokeRect(Math.min(x0, x1), Y(rk.goal_half_width), Math.abs(x1 - x0), 2 * rk.goal_half_width * scale);
+  }
+  rinkPath(); ctx.strokeStyle = pal.boards; ctx.lineWidth = Math.max(2, 0.25 * scale); ctx.stroke();
+}
+
+/* ---------- play ---------- */
+function at(i) { const f = g().f, o = i * N; return f.subarray ? f.subarray(o, o + N) : f.slice(o, o + N); }
+
+function drawFrame() {
+  const rk = R(), d = at(frame), tm = g().teams;
+  if (trails) {
+    const span = Math.round(TAPE.fps * 1.2);
+    for (const [k, col, w] of [[0, tm[0].colour, 0.10], [3, tm[1].colour, 0.10], [6, pal.puck, 0.06]]) {
+      ctx.lineCap = "round";
+      for (let j = Math.max(1, frame - span); j <= frame; j++) {
+        const p = at(j - 1), q = at(j);
+        if (Math.hypot(q[k] - p[k], q[k + 1] - p[k + 1]) > 3) continue; // a reset, not motion
+        ctx.globalAlpha = 0.55 * (1 - (frame - j) / span);
+        ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.5, w * scale);
+        ctx.beginPath(); ctx.moveTo(X(p[k]), Y(p[k + 1])); ctx.lineTo(X(q[k]), Y(q[k + 1])); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  const poss = d[8];
+  for (let a = 0; a < 2; a++) {
+    const x = d[3 * a], y = d[3 * a + 1], th = d[3 * a + 2], col = tm[a].colour;
+    const r = Math.max(rk.skater_radius * scale, 7);
+    const bx = x + Math.cos(th) * rk.blade_offset, by = y + Math.sin(th) * rk.blade_offset;
+    ctx.strokeStyle = pal.ink; ctx.lineWidth = Math.max(2, 0.09 * scale); ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(X(x), Y(y)); ctx.lineTo(X(bx), Y(by)); ctx.stroke();
+    ctx.beginPath(); ctx.arc(X(x), Y(y), r, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+    if (poss === a) { ctx.strokeStyle = pal.light; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(X(x), Y(y), r + 4, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(X(x), Y(y)); ctx.lineTo(X(x) + Math.cos(th) * r, Y(y) - Math.sin(th) * r);
+    ctx.strokeStyle = pal.ice; ctx.lineWidth = 2; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(X(d[6]), Y(d[7]), Math.max(rk.puck_radius * scale * 2, 3.5), 0, Math.PI * 2);
+  ctx.fillStyle = pal.puck; ctx.fill();
+}
+
+function scoreAt(i) {
+  const s = [0, 0]; let lastGoal = -1e9, who = -1;
+  for (const [fi, team] of g().goals) if (fi <= i) { s[team]++; lastGoal = fi; who = team; }
+  return { s, lastGoal, who };
+}
+function clockText(i) {
+  const t = i / TAPE.fps, m = Math.floor(t / 60), sec = t - 60 * m;
+  return `${m}:${sec.toFixed(1).padStart(4, "0")}`;
+}
+function draw() {
+  if (!TAPE) return;
+  drawRink(); drawFrame();
+  const { s, lastGoal, who } = scoreAt(frame);
+  $("scoreA").textContent = s[0]; $("scoreB").textContent = s[1];
+  $("clock").textContent = clockText(frame);
+  const showGoal = frame - lastGoal < TAPE.fps * 1.5;
+  $("goal").hidden = !showGoal;
+  if (showGoal) $("goal").style.background = g().teams[who].colour;
+  $("seek").value = frame;
+}
+
+function loop(ts) {
+  if (!playing) return;
+  const dt = Math.min((ts - (last || ts)) / 1000, 0.1); last = ts;
+  acc += dt * TAPE.fps * speed;
+  const step = Math.floor(acc); acc -= step;
+  if (step) {
+    frame += step;
+    if (frame >= nFrames() - 1) { frame = nFrames() - 1; setPlaying(false); }
+    draw();
+  }
+  requestAnimationFrame(loop);
+}
+function setPlaying(p) {
+  playing = p; $("play").textContent = p ? "Pause" : "Play"; $("play").setAttribute("aria-pressed", String(p));
+  if (p) { if (frame >= nFrames() - 1) frame = 0; last = 0; acc = 0; requestAnimationFrame(loop); }
+}
+
+/* ---------- reels ---------- */
+function stats() {
+  const n = nFrames(), c = [0, 0, 0], f = g().f;
+  for (let i = 0; i < n; i++) { const p = f[i * N + 8]; c[p < 0 ? 2 : p]++; }
+  const tm = g().teams, rows = [];
+  const pct = (k) => (100 * c[k] / n).toFixed(0);
+  rows.push(["Possession", `<div class="bar"><span style="width:${pct(0)}%;background:${tm[0].colour}"></span><span style="width:${pct(2)}%"></span><span style="width:${pct(1)}%;background:${tm[1].colour}"></span></div>`, `${pct(0)} / ${pct(1)}`]);
+  rows.push(["Loose puck", "", `${pct(2)}%`]);
+  rows.push(["Goals", "", `${g().final[0]} – ${g().final[1]}`]);
+  rows.push(["Length", "", clockText(n - 1)]);
+  $("stats").innerHTML = rows.map(([a, b, c2]) => `<span>${a}</span><span>${b}</span><span class="num">${c2}</span>`).join("");
+}
+function selectReel(i, keepFrame) {
+  reel = i; if (!keepFrame) frame = 0;
+  const r = g();
+  $("nameA").textContent = r.teams[0].name; $("nameB").textContent = r.teams[1].name;
+  $("chipA").style.background = r.teams[0].colour; $("chipB").style.background = r.teams[1].colour;
+  $("seek").max = nFrames() - 1;
+  $("marks").innerHTML = r.goals.map(([fi, t]) => `<i style="left:${(100 * fi / (nFrames() - 1)).toFixed(2)}%;background:${r.teams[t].colour}"></i>`).join("");
+  $("note").innerHTML = r.note.map((p) => `<p>${p}</p>`).join("");
+  document.querySelectorAll(".reel").forEach((b, k) => b.setAttribute("aria-pressed", String(k === i)));
+  stats(); draw();
+  if (location.hash.slice(1) !== r.id) history.replaceState(null, "", "#" + r.id);
+}
+
+function start(saved) {
+  if (!TAPE) { $("note").textContent = "No reels were packed into this page."; return; }
+  for (const r of TAPE.reels) r.f = Float32Array.from(r.f);
+  $("reels").innerHTML = TAPE.reels.map((r, i) =>
+    `<button class="reel" data-i="${i}" aria-pressed="false"><span class="t">${r.label}</span><span class="s">${r.final[0]}–${r.final[1]}</span><span class="d">${r.blurb}</span></button>`).join("");
+  document.querySelectorAll(".reel").forEach((b) => b.addEventListener("click", () => selectReel(+b.dataset.i)));
+  $("foot").innerHTML = TAPE.footer;
+  layout();
+  const fromHash = TAPE.reels.findIndex((r) => r.id === location.hash.slice(1));
+  const i = saved && saved.reel != null ? saved.reel : Math.max(0, fromHash);
+  selectReel(i, false);
+  if (saved && saved.frame != null) { frame = Math.min(saved.frame, nFrames() - 1); draw(); }
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (saved ? saved.playing : !reduce) setPlaying(true);
+}
+
+$("play").addEventListener("click", () => setPlaying(!playing));
+$("seek").addEventListener("input", (e) => { frame = +e.target.value; draw(); });
+document.querySelectorAll("[data-speed]").forEach((b) => b.addEventListener("click", () => {
+  speed = +b.dataset.speed;
+  document.querySelectorAll("[data-speed]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+}));
+$("trails").addEventListener("click", () => { trails = !trails; $("trails").setAttribute("aria-pressed", String(trails)); draw(); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" && e.key !== " ") return;
+  if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    e.preventDefault();
+    frame = Math.max(0, Math.min(nFrames() - 1, frame + (e.key === "ArrowRight" ? 1 : -1) * Math.round(TAPE.fps / 2)));
+    draw();
+  }
+});
+window.addEventListener("hashchange", () => {
+  const i = TAPE ? TAPE.reels.findIndex((r) => r.id === location.hash.slice(1)) : -1;
+  if (i >= 0 && i !== reel) selectReel(i);
+});
+new ResizeObserver(() => { if (TAPE) { layout(); draw(); } }).observe(cv);
+window.claude?.hot?.snapshot?.(() => ({ reel, frame, playing }));
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data);
+</script>
