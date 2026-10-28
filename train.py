@@ -127,6 +127,15 @@ def frozen_rng():
         np.random.set_state(numpy_state)
 
 
+def init_from_checkpoint(trainer, path):
+    """Load a checkpoint's network and observation normaliser into a fresh
+    trainer, for fine-tuning. Loading draws no randomness, so the run's random
+    streams are exactly those of a fresh run with the same seed."""
+    ck = torch.load(path, map_location=trainer.device, weights_only=False)
+    trainer.net.load_state_dict(ck["net"])
+    trainer.norm.load_state_dict(ck["norm"])
+
+
 def resolve_anchors(specs, seed=12345):
     """Build the fixed opponents the learner is scored against.
 
@@ -218,6 +227,12 @@ def main():
                          "For staged screening, where each stage must be the literal "
                          "start of the long run -- the learning rate anneals over "
                          "--total-steps, so a separate short run would not be.")
+    ap.add_argument("--init-from", type=str, default="", metavar="CHECKPOINT",
+                    help="start from this network's weights and observation "
+                         "normaliser instead of a fresh initialisation (fine-tuning). "
+                         "The optimiser, opponent pool and step count start fresh. "
+                         "Ignored when --resume finds a latest.pt, which already holds "
+                         "the fine-tuned weights.")
     ap.add_argument("--resume", action="store_true",
                     help="continue from <out>/latest.pt if it exists")
     args = ap.parse_args()
@@ -255,6 +270,9 @@ def main():
     start_update = 1
     best = -1e9
     resume_path = os.path.join(args.out, "latest.pt")
+    if args.init_from and not (args.resume and os.path.exists(resume_path)):
+        init_from_checkpoint(trainer, args.init_from)
+        print(f"[train] initialised from {args.init_from}", flush=True)
     if args.resume and os.path.exists(resume_path):
         start_update = trainer.load_for_resume(resume_path)
         # Carry the incumbent rating across the resume. Without this `best`

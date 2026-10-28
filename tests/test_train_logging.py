@@ -128,3 +128,17 @@ def test_pause_and_resume_is_bit_identical_to_an_uninterrupted_run(tmp_path):
     wa = torch.load(whole / "final.pt", weights_only=False)["net"]
     wb = torch.load(split / "final.pt", weights_only=False)["net"]
     assert all(torch.equal(wa[k], wb[k]) for k in wa)
+
+
+def test_init_from_loads_weights_and_normaliser_exactly():
+    import torch
+    from hockey.config import DEFAULT
+    from rl.ppo import PPOConfig, PPOTrainer
+    src = "checkpoints/v8-screened-50m.pt"
+    tr = PPOTrainer(PPOConfig(num_envs=4, rollout_steps=8, seed=17), DEFAULT)
+    before = torch.get_rng_state()
+    train.init_from_checkpoint(tr, src)
+    assert torch.equal(before, torch.get_rng_state())          # draws no randomness
+    ck = torch.load(src, weights_only=False)
+    assert all(torch.equal(tr.net.state_dict()[k], ck["net"][k]) for k in ck["net"])
+    assert (tr.norm.mean == ck["norm"]["mean"]).all() and tr.norm.count == ck["norm"]["count"]
