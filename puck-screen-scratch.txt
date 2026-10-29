@@ -1,0 +1,28 @@
+ net arm    holds fire|hold  hold s on target  shots  goal%
+ 300 ctl       18     0.667   0.042      0.0%      8   22.0   (ineligible)
+ 300 poss      19     0.737   0.047      0.0%     10   20.0   (ineligible)
+ 300 aim      127     0.276   0.098      0.0%     17    9.8
+ 301 ctl       12     0.333   0.050      0.0%      2    5.9   (ineligible)
+ 301 poss      34     0.676   0.057      0.0%     17    9.4   (ineligible)
+ 301 aim       18     0.444   0.047      0.0%      5    2.0   (ineligible)
+ 302 ctl       25     0.440   0.067      0.0%      4    7.8   (ineligible)
+ 302 poss      15     0.667   0.053      0.0%      5    5.9   (ineligible)
+ 302 aim       78     0.782   0.045      0.0%     35   40.8
+ 303 ctl       74     0.324   0.089     13.3%     15    8.0
+ 303 poss      60     0.300   0.067     14.3%      7   11.1
+ 303 aim       44     0.205   0.114      0.0%     11    9.4   (ineligible)
+ 304 ctl        3     0.333   0.000      0.0%      0    2.0   (ineligible)
+ 304 poss      14     0.286   0.067      0.0%      1    5.9   (ineligible)
+ 304 aim        0       nan   0.000      0.0%      0    2.0   (ineligible)
+ 305 ctl        0       nan   0.000      0.0%      0    2.0   (ineligible)
+ 305 poss       4     0.500   0.033      0.0%      1    2.0   (ineligible)
+ 305 aim        9     0.333   0.033      0.0%      1    2.0   (ineligible)
+ 306 ctl       21     0.524   0.042      0.0%      8   21.7   (ineligible)
+ 306 poss      29     0.759   0.033      0.0%     10    7.7   (ineligible)
+ 306 aim       88     0.648   0.047      3.1%     32   19.0
+ 307 ctl       23     0.435   0.087      0.0%      5   12.7   (ineligible)
+ 307 poss       3     0.333   0.067      0.0%      1    2.0   (ineligible)
+ 307 aim       72     0.472   0.041     30.8%     13   14.3
+
+poss  PRIMARY: 1 eligible pairs -> insufficient data
+aim   PRIMARY: 0 eligible pairs -> insufficient data

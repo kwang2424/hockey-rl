@@ -106,6 +106,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | critic-slow-250k | same, critic slowed for the first 250k steps only | 3M x 24 | +0.9 points, p = 0.82 | **null** -- the short window did not shed the harm (healthy -8.8 vs -7.6) |
 | screened-50m (v8) | no config change: 12 starting networks screened at 250k and 3M, best trained to 50M | 50M | 0.534, beats v7 160-64, v6 137-101 | **strongest learned agent so far** (one run; not evidence screening beats training) |
 | puck-finetune | fine-tune v8 20M: control / possession_rate=0.0008 / puck_goal_speed_rate=0.01 | 20M x 3 | possession 0.033-0.034 s in every arm | **null** -- the habit shuts off its own exploration; it forms between 250k and 3M steps |
+| puck-scratch | from scratch, 8 networks x {control, possession_rate, puck_goal_speed_rate}, 3M | 3M x 24 | 1 and 0 eligible pairs | **insufficient data** -- at 3M runs barely touch the puck |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -912,12 +913,42 @@ When it forms, from saved snapshots:
 | network | fires while holding |
 |---|---|
 | network 200 at 250k steps | 57% -- close to an untrained network's coin flip |
-| network 200 at 3M | 100% |
+| network 200 at 3M | ~~100%~~ -- *Correction (see puck-scratch):* a handful of holds; unreliable |
 | network 203 (v8's run) at 5M / 20M | 99% / 100% |
 
-**The habit locks in between 250k and 3M steps.** That is the window in which a
+~~**The habit locks in between 250k and 3M steps.** That is the window in which a
 holding or aiming reward has to act, while both actions are still being
-tried -- and a 3M-step run from scratch is enough to see whether it does.
+tried -- and a 3M-step run from scratch is enough to see whether it does.~~
+*Correction (see puck-scratch):* the 3M figure for network 200 rested on a handful of holds. Control
+runs at 3M in puck-scratch fire on 32-67% of their (few) holds, so the habit
+is not established by 3M; it forms later, by 5M in v8's run.
+
+### puck-scratch: at 3M steps the networks barely touch the puck
+
+From-scratch screen, 8 starting networks x three arms (control,
+possession_rate=0.0008, puck_goal_speed_rate=0.01), 3M steps, pre-registered
+in `analysis/puck_scratch.py`. Primary: paired fire-while-holding, over
+networks whose runs held the puck on >= 50 of ~154k agent-steps in both arms.
+
+**Verdict: insufficient data for both rewards** (1 eligible pair for
+possession, 0 for aim). Most runs held the puck on fewer than 50 steps; several
+on 0-20.
+
+| arm | holding steps per run (networks 300-307) | mean |
+|---|---|---|
+| control | 18, 12, 25, 74, 3, 0, 21, 23 | 22 |
+| possession_rate | 19, 34, 15, 60, 14, 4, 29, 3 | 22 |
+| puck_goal_speed_rate | 127, 18, 78, 44, 0, 9, 88, 72 | 55 |
+
+Exploratory, not a test: the aim reward made skaters touch the puck about two
+and a half times as often (more holds than control for 6 of 8 networks), and
+produced the screen's best goal rate (network 302, 40.8%).
+
+Two lessons. The design failed on a quantity it could have checked first: how
+often a 3M-step network holds the puck at all. And it corrected a claim made in
+puck-finetune -- the habit is not formed by 3M (control runs fire on 32-67% of
+their few holds); it forms later, once a run touches the puck often enough to
+learn about it.
 
 ### The reproducibility checks were broken
 
