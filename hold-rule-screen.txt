@@ -1,0 +1,34 @@
+behaviour (self-play):
+  ctl, ordinary game         on target   3.5%   possession 0.033 s   shots  227   goals/min 2.44
+
+rule 0.2 s:
+  ctl under 0.2 s rule       on target   1.4%   possession 0.233 s   shots  216   goals/min 1.78
+  hold02 under 0.2 s rule    on target   2.7%   possession 0.208 s   shots  296   goals/min 2.46
+  PRIMARY hold02: on target 2.7% vs ctl 1.4% (gap +1.3%)  ->  FAIL
+  secondary: hold02 vs ctl 141-75 (share 0.653);  hold02 vs ChaseBot 85-247
+
+rule 0.5 s:
+  ctl under 0.5 s rule       on target   1.1%   possession 0.335 s   shots  187   goals/min 1.34
+  hold05 under 0.5 s rule    on target   0.8%   possession 0.360 s   shots  243   goals/min 3.14
+  PRIMARY hold05: on target 0.8% vs ctl 1.1% (gap -0.2%)  ->  FAIL
+  secondary: hold05 vs ctl 222-46 (share 0.828);  hold05 vs ChaseBot 124-219
+1. how goals are scored (self-play):
+  ctl     rule 0.0 s   carried in    0   loose  441   carried share 0%
+  hold02  rule 0.2 s   carried in    5   loose  443   carried share 1%
+  hold05  rule 0.5 s   carried in    6   loose  515   carried share 1%
+  ctl     rule 0.5 s   carried in    9   loose  284   carried share 3%
+  ChaseBot, ordinary game   carried in    6   loose  711   carried share 1%
+
+2. ChaseBot under each rule, against the same opponents:
+  rule 0.0 s   v8   vs ChaseBot   57-309  share 0.156
+  rule 0.0 s   ctl  vs ChaseBot   37-342  share 0.098
+  rule 0.2 s   v8   vs ChaseBot   63-288  share 0.179
+  rule 0.2 s   ctl  vs ChaseBot   36-313  share 0.103
+  rule 0.2 s   hold02 vs ChaseBot   85-247  share 0.256
+  rule 0.5 s   v8   vs ChaseBot   40-276  share 0.127
+  rule 0.5 s   ctl  vs ChaseBot   15-338  share 0.042
+  rule 0.5 s   hold05 vs ChaseBot  124-219  share 0.362
+matchup vs ChaseBot    | agent: poss  shots  on tgt | ChaseBot: poss  shots  on tgt  hold s
+v8, ordinary game      |        0.2%    158    5.7% |          34.1%    365   85.5%    1.02
+v8, 0.5 s rule         |        3.2%    123    0.8% |          33.2%    355   87.9%    1.09
+hold05, 0.5 s rule     |        5.4%    224    0.4% |          27.0%    248   85.5%    1.25

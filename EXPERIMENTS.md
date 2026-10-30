@@ -107,6 +107,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | screened-50m (v8) | no config change: 12 starting networks screened at 250k and 3M, best trained to 50M | 50M | 0.534, beats v7 160-64, v6 137-101 | **strongest learned agent so far** (one run; not evidence screening beats training) |
 | puck-finetune | fine-tune v8 20M: control / possession_rate=0.0008 / puck_goal_speed_rate=0.01 | 20M x 3 | possession 0.033-0.034 s in every arm | **null** -- the habit shuts off its own exploration; it forms between 250k and 3M steps |
 | puck-scratch | from scratch, 8 networks x {control, possession_rate, puck_goal_speed_rate}, 3M | 3M x 24 | 1 and 0 eligible pairs | **insufficient data** -- at 3M runs barely touch the puck |
+| hold-rule | fine-tune v8 20M under min_hold_time 0 / 0.2 / 0.5 s | 20M x 3 | on target 2.7% / 0.8% | **fail** on aiming; post hoc, the 0.5 s arm is far better vs ChaseBot (0.362 vs v8's 0.156), mostly defensively |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -949,6 +950,47 @@ often a 3M-step network holds the puck at all. And it corrected a claim made in
 puck-finetune -- the habit is not formed by 3M (control runs fire on 32-67% of
 their few holds); it forms later, once a run touches the puck often enough to
 learn about it.
+
+### hold-rule: a minimum hold makes a better player, not an aiming one
+
+`min_hold_time`: after picking up the puck a skater cannot shoot until it has
+held it that long; the time left shows in the existing shot-cooldown slot, so
+v8 can be fine-tuned. Three arms fine-tuned from v8 for 20M steps (lr 1e-4),
+pre-registered in `analysis/hold_rule.py`. Because the rule alone forces any
+policy to hold, learned aiming is measured against the control network
+playing the same rule.
+
+| self-play, shots on target | control, same rule | trained under the rule | gap | verdict |
+|---|---|---|---|---|
+| 0.2 s rule | 1.4% | 2.7% | +1.3 | **fail** |
+| 0.5 s rule | 1.1% | 0.8% | -0.2 | **fail** |
+
+**Pre-registered verdict: no learned aiming at either setting.**
+
+The secondary numbers were large: under its rule the 0.5 s arm beat the
+control 222-46 and ChaseBot 124-219, against v8's 57-309. Both needed
+checking, post hoc (`analysis/hold_rule_posthoc.py`, written after the
+results):
+
+- **Not carrying in.** About 1% of goals are scored with the scorer still
+  holding the puck, in every arm and for ChaseBot too; goals here come from
+  released pucks.
+- **The rule does not handicap ChaseBot; it handicaps untrained networks.**
+  Against ChaseBot under the 0.5 s rule, v8 falls to 0.127 (0.156 in the
+  ordinary game) and the control to 0.042. The 0.5 s arm's 0.362 is learned,
+  and against an opponent that is not itself. The 222-46 over the control is
+  partly the control playing an unfamiliar game.
+- **The gain is mostly defensive.** With the 0.5 s arm opposite, ChaseBot
+  holds the puck 27% of the time instead of 34% and gets off 248 shots instead
+  of 365 (-32%). The arm's own shots are still blind (0.4% on target).
+
+**Reading.** Forcing possession worked in the sense that mattered for
+exploration -- the arm now holds the puck and adapted to doing so -- and it
+produced the best result against ChaseBot of any learned agent. But holding
+did not turn into aiming. That points at the remaining gap: with every shaping
+term cancelled by the critic, the only signal for *which way* to shoot is a
+goal many steps later. An aiming reward could not be collected before because
+the agent never held the puck; under the rule it now does.
 
 ### The reproducibility checks were broken
 
