@@ -1,0 +1,21 @@
+self-play under the 0.5 s rule:
+  rule                       on target   1.9%   possession 0.363 s   shots  262   goals/min 4.10
+  rule_aim                   on target   1.5%   possession 0.415 s   shots  265   goals/min 3.75
+
+PRIMARY: on target rule_aim 1.5% vs rule 1.9% (gap -0.4%)  ->  FAIL
+
+secondary: rule_aim vs rule 162-150 (share 0.519)
+  rule      vs ChaseBot 140-220 (share 0.389);  ChaseBot possession 25.7%, shots 231
+  rule_aim  vs ChaseBot 148-205 (share 0.419);  ChaseBot possession 25.8%, shots 240
+self-play               shots median err  <=10 deg  <=30 deg median dist  poss ending in a shot
+v8, ordinary game         424      31.5°       13%       46%       27.1m                   100%
+hold05 start point        365      42.0°        7%       26%       25.0m                    60%
+rule (20M more)           370      34.3°        7%       38%       25.2m                    56%
+rule_aim (20M more)       389      37.8°        4%       21%       25.4m                    67%
+ChaseBot, ordinary game    302       0.6°       91%      100%       16.8m                    19%
+(uniformly random aim: median error 90 deg, 6% within 10, 17% within 30)
+
+same measure, deterministic actions (no exploration noise):
+  v8, ordinary game      shots   416  median err  31.7°  <=10 deg  14%  <=30 deg  46%  median dist 27.1m
+  rule (20M more)        shots   348  median err  36.9°  <=10 deg   5%  <=30 deg  30%  median dist 25.1m
+  rule_aim (20M more)    shots   396  median err  38.1°  <=10 deg   3%  <=30 deg  21%  median dist 25.5m

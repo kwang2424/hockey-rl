@@ -108,6 +108,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | puck-finetune | fine-tune v8 20M: control / possession_rate=0.0008 / puck_goal_speed_rate=0.01 | 20M x 3 | possession 0.033-0.034 s in every arm | **null** -- the habit shuts off its own exploration; it forms between 250k and 3M steps |
 | puck-scratch | from scratch, 8 networks x {control, possession_rate, puck_goal_speed_rate}, 3M | 3M x 24 | 1 and 0 eligible pairs | **insufficient data** -- at 3M runs barely touch the puck |
 | hold-rule | fine-tune v8 20M under min_hold_time 0 / 0.2 / 0.5 s | 20M x 3 | on target 2.7% / 0.8% | **fail** on aiming; post hoc, the 0.5 s arm is far better vs ChaseBot (0.362 vs v8's 0.156), mostly defensively |
+| hold-aim | 0.5 s rule, +/- puck_goal_speed_rate=0.01, fine-tuned 20M from hold05 | 20M x 2 | on target 1.5% vs 1.9% | **fail**; post hoc, learners aim roughly (~35 deg) from centre ice, ChaseBot precisely (0.6 deg) from 17 m |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -991,6 +992,59 @@ did not turn into aiming. That points at the remaining gap: with every shaping
 term cancelled by the critic, the only signal for *which way* to shoot is a
 goal many steps later. An aiming reward could not be collected before because
 the agent never held the puck; under the rule it now does.
+
+### hold-aim: an aiming reward does not sharpen aim, and aim is not the gap
+
+The follow-up to hold-rule: under the 0.5 s rule the agent holds the puck, so
+an aiming reward (`puck_goal_speed_rate`) can finally be collected. Two arms
+fine-tuned from `checkpoints/hold05-v8-finetune.pt` for 20M steps, both under
+the rule; pre-registered in `analysis/hold_aim.py`.
+
+| self-play, 0.5 s rule | on target | possession | goals/min | vs ChaseBot |
+|---|---|---|---|---|
+| rule only | 1.9% | 0.363 s | 4.10 | 140-220 (0.389) |
+| rule + aim reward | 1.5% | 0.415 s | 3.75 | 148-205 (0.419) |
+
+**Primary: fail** (-0.4 points). Skill against ChaseBot keeps rising under the
+rule -- 0.419 is the best learned result so far -- but not through aim.
+
+#### Why aiming never moves: shot geometry (post hoc)
+
+`analysis/aim_geometry.py`, written after the result. "On target" needs the
+shot's line inside a 1.83 m goal mouth: about +/-2-3.5 degrees of heading from
+15-25 m. The aiming reward pays velocity toward the goal, so a shot 20 degrees
+off earns 94% of the maximum -- a reward too blunt for that window was the
+hypothesis.
+
+| self-play | median heading error | within 10 deg | within 30 deg | shot distance | possessions ending in a shot |
+|---|---|---|---|---|---|
+| v8, ordinary game | 31.5 deg | 13% | 46% | 27.1 m | 100% |
+| rule only | 34.3 deg | 7% | 38% | 25.2 m | 56% |
+| rule + aim reward | 37.8 deg | 4% | 21% | 25.4 m | 67% |
+| **ChaseBot** | **0.6 deg** | **91%** | **100%** | **16.8 m** | **19%** |
+| *random aim* | *90 deg* | *6%* | *17%* | | |
+
+With exploration noise switched off (deterministic actions) the errors are the
+same: 31.7, 36.9 and 38.1 degrees. It is systematic, not jitter.
+
+What this says:
+
+- **The learned agents already aim roughly**, far better than random, and the
+  aiming reward did not sharpen it (it got slightly worse). The blunt-reward
+  hypothesis is not supported.
+- **The real gap is where they shoot from.** Learned agents shoot from about
+  25 m -- centre ice -- as soon as they are allowed. ChaseBot carries the puck
+  in to about 17 m, lines up almost exactly, and only then shoots: only 19% of
+  its possessions end in a shot.
+- **In a goalie-less game the long-range strategy pays.** Shots from centre ice
+  with ~35 degree aim, plus volume and rebounds, score 3-4 goals a minute in
+  self-play. Carrying closer risks the puck (a third to nearly half of
+  possessions under the rule are lost before a shot) for little gain, because
+  nothing stops a long shot that happens to bounce in.
+
+The lever this points at is the one real hockey uses: **a goalie.** It makes a
+rough shot from centre ice fail, so carrying in and picking a spot become
+necessary rather than merely rewarded.
 
 ### The reproducibility checks were broken
 
