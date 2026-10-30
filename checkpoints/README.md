@@ -13,6 +13,7 @@ are measured from them and are otherwise unreproducible.
 | `v7-seed4-50m.pt` | 50.0M | same config again, seed 4 -- the strongest of twelve runs | -4.98 /min |
 | `stuck-example-3m.pt` | 3.0M | same config, a starting network that got stuck (2% goals) -- kept as the reference failure for the Game Tape | -- |
 | `v8-screened-50m.pt` | 50.0M | **same config**, starting network chosen by two-stage screening (init_seed 203, seed 17) | -- (see ladder) |
+| `hold05-v8-finetune.pt` | 50M + 20M | v8 fine-tuned under the settle-before-shooting rule (`min_hold_time=0.5`) -- plays that game, not the ordinary one; best learned result vs ChaseBot under it (124-219) | -- |
 
 `v6` is by a clear margin the strongest, and the only one that beats `v2`
 head-to-head (98-38). Nothing about the reward, network or hyperparameters
