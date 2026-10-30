@@ -522,3 +522,59 @@ def test_velocity_rates_off_by_default_leave_rewards_bit_identical():
     b, _, _ = _step_vel(Config(approach_speed_rate=0.0, puck_goal_speed_rate=0.0))
     assert C.approach_speed_rate == 0.0 and C.puck_goal_speed_rate == 0.0
     assert np.array_equal(a, b)
+
+
+def _held_env(min_hold, held_for):
+    env = VecHockeyEnv(num_envs=1, cfg=Config(min_hold_time=min_hold), seed=5)
+    env.possessor[:] = 0
+    env.held_for[:] = held_for
+    return env
+
+
+def test_min_hold_blocks_a_shot_during_the_lockout_and_allows_it_after():
+    early = _held_env(0.2, 0.1)
+    early._apply_shots(np.ones((1, 2)))
+    assert early.possessor[0] == 0 and not early.fired.any()
+    late = _held_env(0.2, 0.25)
+    late._apply_shots(np.ones((1, 2)))
+    assert late.possessor[0] == -1 and late.fired[0, 0]
+
+
+def test_min_hold_shows_time_left_in_the_cooldown_slot():
+    from hockey.env import OBS_SLICES
+    env = _held_env(0.2, 0.05)
+    obs = env.observe()
+    sl = OBS_SLICES["shot_cooldown"]
+    assert obs[0, 0, sl][0] == pytest.approx(0.75)   # holder: 0.15 of 0.2 s left
+    assert obs[0, 1, sl][0] == pytest.approx(0.0)    # the other skater: no lock
+
+
+def test_an_always_shooting_skater_cannot_fire_before_the_minimum_hold():
+    """End to end: hold for less than 0.2 s and no shot happens, however hard
+    the policy pulls the trigger."""
+    cfg = Config(min_hold_time=0.2)
+    env = VecHockeyEnv(num_envs=64, cfg=cfg, seed=9)
+    rng = np.random.default_rng(9)
+    run = np.zeros((64, 2), dtype=int)
+    fired_runs = []
+    for _ in range(900):
+        act = rng.uniform(-1, 1, (64, 2, 3))
+        act[..., 2] = 1.0                                   # always try to shoot
+        holding = np.stack([env.possessor == a for a in (0, 1)], 1)
+        run = np.where(holding, run + 1, 0)
+        env.step(act)
+        fired_runs += run[env.fired].tolist()
+    assert fired_runs, "no shot was ever taken -- the test exercised nothing"
+    steps_needed = int(round(0.2 / cfg.control_dt))
+    assert min(fired_runs) >= steps_needed
+
+
+def test_min_hold_off_by_default_changes_nothing():
+    assert C.min_hold_time == 0.0
+    a = VecHockeyEnv(num_envs=16, cfg=C, seed=3)
+    b = VecHockeyEnv(num_envs=16, cfg=Config(min_hold_time=0.0), seed=3)
+    rng = np.random.default_rng(3)
+    for _ in range(200):
+        act = rng.uniform(-1, 1, (16, 2, 3))
+        oa, ra, *_ = a.step(act); ob, rb, *_ = b.step(act)
+        assert np.array_equal(oa, ob) and np.array_equal(ra, rb)

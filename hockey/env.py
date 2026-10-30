@@ -88,6 +88,11 @@ class VecHockeyEnv:
         self.puck_vel = z2(num_envs, 2)
         self.cooldown = z2(num_envs, N_AGENTS)
         self.possessor = np.full(num_envs, -1, dtype=np.int64)
+        # How long the current possessor has held the puck (s), and which
+        # skaters actually fired on the last step -- with min_hold_time set, a
+        # shoot action is not always a shot.
+        self.held_for = np.zeros(num_envs)
+        self.fired = np.zeros((num_envs, N_AGENTS), dtype=bool)
         self.step_count = np.zeros(num_envs, dtype=np.int64)
 
         # rolling per-episode bookkeeping, surfaced through ``info``
@@ -152,6 +157,7 @@ class VecHockeyEnv:
 
         self.cooldown[idx] = 0.0
         self.possessor[idx] = -1
+        self.held_for[idx] = 0.0
         self.step_count[idx] = 0
         self.ep_shots[idx] = 0
         self.ep_possession[idx] = 0.0
@@ -224,6 +230,7 @@ class VecHockeyEnv:
         self.puck_vel[rows] = self.skater_vel[rows, carrier]
         self.possessor[rows] = carrier
         self.cooldown[rows] = 0.0
+        self.held_for[rows] = 0.0
 
         for _ in range(3):
             self._resolve_skater_pairs()
@@ -327,12 +334,15 @@ class VecHockeyEnv:
     def _apply_shots(self, shoot):
         """Release the puck for whichever possessor pulled the trigger."""
         cfg = self.cfg
+        self.fired[:] = False
         has = self.possessor >= 0
         if not np.any(has):
             return
         owner = np.clip(self.possessor, 0, N_AGENTS - 1)
         power = np.take_along_axis(shoot, owner[:, None], 1)[:, 0]
         fire = has & (power > cfg.shot_threshold)
+        if cfg.min_hold_time:
+            fire &= self.held_for >= cfg.min_hold_time - 1e-9
         if not np.any(fire):
             return
 
@@ -343,7 +353,9 @@ class VecHockeyEnv:
         self.puck_vel = np.where(fire[:, None], shot_v, self.puck_vel)
         np.add.at(self.ep_shots, (np.nonzero(fire)[0], owner[fire]), 1)
         self.cooldown[np.nonzero(fire)[0], owner[fire]] = cfg.shot_cooldown
+        self.fired[np.nonzero(fire)[0], owner[fire]] = True
         self.possessor = np.where(fire, -1, self.possessor)
+        self.held_for = np.where(fire, 0.0, self.held_for)
 
     def _substep(self, action):
         cfg = self.cfg
@@ -449,7 +461,10 @@ class VecHockeyEnv:
         any_elig = np.isfinite(masked.min(axis=1))
         fresh = np.where(any_elig, best, -1)
 
-        self.possessor = np.where(keeps, self.possessor, fresh)
+        new = np.where(keeps, self.possessor, fresh)
+        same = (new == self.possessor) & (new >= 0)
+        self.held_for = np.where(same, self.held_for + cfg.physics_dt, 0.0)
+        self.possessor = new
 
     def _integrate_puck(self, dt):
         """Carried pucks track the blade; loose pucks glide."""
@@ -603,6 +618,14 @@ class VecHockeyEnv:
         board_n_b = _rotate_into_body(board_vec, th) / cfg.corner_radius
 
         cd = (self.cooldown / max(cfg.shot_cooldown, EPS))[..., None]
+        if cfg.min_hold_time:
+            # Same slot, widened to "time until I may act on the puck": after a
+            # shot, until I may recapture; while holding, until I may shoot.
+            lock = np.stack([np.where(self.possessor == a,
+                                      np.maximum(cfg.min_hold_time - self.held_for, 0.0)
+                                      / cfg.min_hold_time, 0.0)
+                             for a in range(N_AGENTS)], axis=1)[..., None]
+            cd = np.maximum(cd, lock)
         t_left = np.broadcast_to(
             (1.0 - self.step_count / cfg.max_episode_steps)[:, None, None],
             (self.n, N_AGENTS, 1),

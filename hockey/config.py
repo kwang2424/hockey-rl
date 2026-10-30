@@ -209,6 +209,20 @@ class Config:
     # toward goal, so it is bounded by the rink and cannot be farmed by
     # bouncing the puck back and forth.
     puck_goal_speed_rate: float = 0.0
+    # "Settle the puck before shooting": a skater cannot shoot until it has
+    # held the puck for this long (seconds). Off by default (0.0).
+    #
+    # A game rule, not a reward. Every learned agent here fires on the first
+    # step it touches the puck -- v8's shoot output while holding averages
+    # +3.66 against a threshold of 0 -- so it never experiences holding, and a
+    # reward for holding or aiming is almost never collected (puck-finetune).
+    # A minimum hold makes that experience unavoidable: every possession now
+    # includes time to carry, turn and protect the puck. Real hockey allows
+    # one-timers, so this is a deliberate simplification to be relaxed once
+    # holding is learned. The time left is shown in the existing shot-cooldown
+    # observation slot, so the skater can see the lockout and the observation
+    # size -- and every existing checkpoint -- is unchanged.
+    min_hold_time: float = 0.0
     # Must match PPOConfig.gamma -- the shaping uses this one and GAE uses
     # that one, and if they diverge the shaping stops being policy-invariant.
     # tests/test_ppo.py asserts they agree.

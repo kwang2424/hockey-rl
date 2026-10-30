@@ -57,14 +57,10 @@ def diagnose(policy_a, policy_b, num_envs=256, steps=600, seed=11,
         act[:, 1] = policy_b.act(obs[:, 1], deterministic=deterministic)
 
         holding = env.possessor == 0
-        will_fire = holding & (act[:, 0, 2] > cfg.shot_threshold)
         held += int(holding.sum())
-        fired_while_held += int(will_fire.sum())
-        if will_fire.any():
-            shots += int(will_fire.sum())
-            on_target += int(_on_target(cfg, env.skater_pos[will_fire, 0],
-                                        env.theta[will_fire, 0],
-                                        np.ones(int(will_fire.sum()), bool)).sum())
+        # Aim is judged from where the skater is and faces when the shot is
+        # taken -- the start of the step, before it moves.
+        pos0, th0 = env.skater_pos[:, 0].copy(), env.theta[:, 0].copy()
 
         blade = env.blade_points()[0]
         body_sum += float(np.linalg.norm(env.puck_pos - env.skater_pos[:, 0], axis=-1).mean())
@@ -72,6 +68,15 @@ def diagnose(policy_a, policy_b, num_envs=256, steps=600, seed=11,
         poss_sum += float(holding.mean())
 
         obs, _, goal, trunc, info = env.step(act)
+        # Count shots the simulator actually took, not shoot actions: with
+        # Config.min_hold_time set, an action during the lockout fires nothing.
+        # With it off the two are identical.
+        fired = env.fired[:, 0]
+        fired_while_held += int(fired.sum())
+        if fired.any():
+            shots += int(fired.sum())
+            on_target += int(_on_target(cfg, pos0[fired], th0[fired],
+                                        np.ones(int(fired.sum()), bool)).sum())
         goals[0] += int(info["goal_a"].sum())
         goals[1] += int(info["goal_b"].sum())
 
