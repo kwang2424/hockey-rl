@@ -110,7 +110,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | hold-rule | fine-tune v8 20M under min_hold_time 0 / 0.2 / 0.5 s | 20M x 3 | on target 2.7% / 0.8% | **fail** on aiming; post hoc, the 0.5 s arm is far better vs ChaseBot (0.362 vs v8's 0.156), mostly defensively |
 | hold-aim | 0.5 s rule, +/- puck_goal_speed_rate=0.01, fine-tuned 20M from hold05 | 20M x 2 | on target 1.5% vs 1.9% | **fail**; post hoc, learners aim roughly (~35 deg) from centre ice, ChaseBot precisely (0.6 deg) from 17 m |
 | net-hole | where goals enter the net; then solid net + scripted goalie, calibrated | no training | 90% of v8's goals enter from behind/side | **sim bug**: the net had no back or sides; fixed behind `solid_net`, goalie added behind `goalie` |
-| goalie-v9 | v8 pipeline from scratch in the fixed game: 12 networks to 3M, best to 50M; goalie curriculum over 15M; rated vs SniperBot | 36M + 47M | *running* | pre-registered in `analysis/goalie_v9.py`: PASS iff self-play goals per shot >= 0.05 |
+| goalie-v9 | v8 pipeline from scratch in the fixed game: 12 networks to 3M, best to 50M; goalie curriculum over 15M; rated vs SniperBot | 36M + 47M | 0 goals / 3 shots in self-play | **fail**: 12 of 12 networks never learn to score; all settle into the retreat-and-wait stuck state |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -1200,6 +1200,53 @@ roughly 10M of its 30M, which argues against it, but nothing has actually run
 long enough to settle it. That test is free on this hardware -- about three
 hours of uptime with `--resume` nudges -- and is the honest next step before
 concluding the setup is at fault.
+
+### goalie-v9: from scratch, the fixed game never gets off the ground
+
+Pre-registered in `analysis/goalie_v9.py`, run with
+`analysis/goalie_v9_run.sh`: the v8 screening pipeline, from scratch, in the
+solid-net goalie game (training goalie's skill ramped from static to full
+over 15M steps; every eval faced the full goalie).
+
+**Primary: fail.** v9 (network 411 at 50M) self-play: 0 goals from 3 shots,
+against the 0.05 goals per shot required.
+
+Stage 2, at 3M steps, full goalie game (`runs/goalie-v9/select.log`):
+
+| | networks scoring (self-play goals/ep >= 0.05) | goals scored against any anchor | conceded to SniperBot |
+|---|---|---|---|
+| 12 networks, init_seed 400-411 | **0 of 12** | 0 by every network | 165-202 each |
+
+All twelve scored exactly 0 goals against every opponent and against
+themselves. The selection could only rank defence (ratings -1.99 to -2.34,
+inside noise), and picked network 411.
+
+v9 at 50M, head to head both ends: SniperBot 175-0, ChaseBot 12-0, v8 1-0,
+random 0-0, its own best.pt 0-0.
+
+Training-time goals show why. Against the near-static early goalie, each
+network scored a handful (1-7 per million steps in the first 1.5M), and that
+fell to zero by 3M as the networks learned to defend. After that there was
+no goal signal at all: 0 goals in the last 1,540 training episodes at 23M.
+
+Post hoc (cannot change the verdict), v9 self-play: possession 0.0% of the
+game, 2 shots in 128 envs x 600 steps, skaters held about 10 m deep in their
+own half and 10 m from a puck that sits at centre ice. **This is the stuck
+state** (EXPERIMENTS.md, the stuck-example checkpoint): the shaping is
+cancelled by the critic, goals are the only signal left, and in this game
+goals never happen.
+
+The stuck rate was 46-58% in the open-net game and is 100% here. The likely
+reason is the net hole itself: random-ish shots that rimmed around the
+boards scored often enough to start learning, and the fixed game removes that
+source of free goals. Fixing the game made the learning problem far sparser.
+
+What this points at: the agent needs real scoring chances early, and the
+stuck equilibrium has to be broken. Tools already in the code: the
+puck-on-stick curriculum (carrier facing the net, defender goal-side),
+`proximity_rate` (non-potential, got every run to the puck in screen-prox,
+p=0.001), a longer static-goalie phase, and warm-starting from v8, which
+reaches the puck and shoots.
 
 ## Practical notes
 
