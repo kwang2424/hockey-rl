@@ -111,6 +111,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | hold-aim | 0.5 s rule, +/- puck_goal_speed_rate=0.01, fine-tuned 20M from hold05 | 20M x 2 | on target 1.5% vs 1.9% | **fail**; post hoc, learners aim roughly (~35 deg) from centre ice, ChaseBot precisely (0.6 deg) from 17 m |
 | net-hole | where goals enter the net; then solid net + scripted goalie, calibrated | no training | 90% of v8's goals enter from behind/side | **sim bug**: the net had no back or sides; fixed behind `solid_net`, goalie added behind `goalie` |
 | goalie-v9 | v8 pipeline from scratch in the fixed game: 12 networks to 3M, best to 50M; goalie curriculum over 15M; rated vs SniperBot | 36M + 47M | 0 goals / 3 shots in self-play | **fail**: 12 of 12 networks never learn to score; all settle into the retreat-and-wait stuck state |
+| escape | two ways out of the stuck state in the fixed game, 8 runs each, 3M: puck-on-stick starts + proximity_rate from scratch; warm start from v8 | 3M x 16 | *running* | pre-registered in `analysis/escape_screen.py`: per arm, PASS iff >= 4 of 8 runs score |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
