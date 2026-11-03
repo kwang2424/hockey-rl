@@ -15,6 +15,12 @@ are measured from them and are otherwise unreproducible.
 | `v8-screened-50m.pt` | 50.0M | **same config**, starting network chosen by two-stage screening (init_seed 203, seed 17) | -- (see ladder) |
 | `hold05-v8-finetune.pt` | 50M + 20M | v8 fine-tuned under the settle-before-shooting rule (`min_hold_time=0.5`) -- plays that game, not the ordinary one; best learned result vs ChaseBot under it (124-219) | -- |
 
+**All of these were trained in the open-net game** (`solid_net` off), where a
+puck entering the net from behind or beside it scores. 90% of v8's goals come
+that way, so their skill does not carry over to the solid-net and goalie game
+(EXPERIMENTS.md, net-hole). They all have 34 inputs and play the goalie game
+blind to the goalies.
+
 `v6` is by a clear margin the strongest, and the only one that beats `v2`
 head-to-head (98-38). Nothing about the reward, network or hyperparameters
 differs from the runs above; the only input was compute. It is the 70M snapshot

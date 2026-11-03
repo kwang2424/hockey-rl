@@ -13,15 +13,17 @@ import argparse
 import numpy as np
 
 from .config import DEFAULT
-from .bots import ChaseBot, RandomBot, StandStillBot
+from .bots import ChaseBot, RandomBot, SniperBot, StandStillBot
 from .render import Renderer, save_gif
 from .rollout import play
 
 
 def resolve_policy(spec, device="cpu"):
-    """'chase' | 'random' | 'still' | a path to a .pt checkpoint."""
+    """'chase' | 'sniper' | 'random' | 'still' | a path to a .pt checkpoint."""
     if spec == "chase":
         return ChaseBot(), "chase"
+    if spec == "sniper":
+        return SniperBot(), "sniper"
     if spec == "random":
         return RandomBot(seed=0), "random"
     if spec == "still":

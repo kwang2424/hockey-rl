@@ -105,7 +105,7 @@ footer { color: var(--muted); font-size: 13px; max-width: 80ch; }
 <div class="wrap">
   <header>
     <h1>hockey-rl Game Tape</h1>
-    <p class="sub">Replays of agents trained by self-play reinforcement learning on a 60 × 26 m rink. One skater a side, no goalie: positions, stick and puck as the simulator recorded them, 30 frames a second.</p>
+    <p class="sub">Replays of agents trained by self-play reinforcement learning on a 60 × 26 m rink. One skater a side, plus a scripted goalie in the reels that say so: positions, stick and puck as the simulator recorded them, 30 frames a second.</p>
   </header>
 
   <div class="board">
@@ -159,7 +159,9 @@ const $ = (id) => document.getElementById(id);
 const cv = $("rink"), ctx = cv.getContext("2d");
 let reel = 0, frame = 0, playing = false, speed = 1, trails = true, acc = 0, last = 0;
 let pal = {};
-const N = 9; // floats per frame: ax ay ath bx by bth px py possessor
+// Floats per frame: ax ay ath bx by bth px py possessor, then g0x g0y g1x g1y
+// in goalie reels (stride 13). Goalie 0 guards the +x net.
+const N = () => g().stride || 9;
 
 function readPalette() {
   const s = getComputedStyle(document.documentElement);
@@ -172,7 +174,7 @@ new MutationObserver(() => { readPalette(); draw(); }).observe(document.document
 
 const g = () => TAPE.reels[reel];
 const R = () => TAPE.rink;
-const nFrames = () => g().f.length / N;
+const nFrames = () => g().f.length / N();
 
 /* ---------- geometry ---------- */
 let scale = 10, ox = 0, oy = 0;
@@ -240,7 +242,7 @@ function drawRink() {
 }
 
 /* ---------- play ---------- */
-function at(i) { const f = g().f, o = i * N; return f.subarray ? f.subarray(o, o + N) : f.slice(o, o + N); }
+function at(i) { const f = g().f, n = N(), o = i * n; return f.subarray ? f.subarray(o, o + n) : f.slice(o, o + n); }
 
 function drawFrame() {
   const rk = R(), d = at(frame), tm = g().teams;
@@ -259,6 +261,17 @@ function drawFrame() {
     }
   }
   const poss = d[8];
+  if (N() >= 13) {
+    // Goalies: a ring in the colour of the team whose net it guards (goalie 0
+    // guards the +x net, which team A attacks, so it is team B's).
+    const gr = Math.max(g().goalie_radius * scale, 6);
+    for (let k = 0; k < 2; k++) {
+      const gx = d[9 + 2 * k], gy = d[10 + 2 * k], col = tm[1 - k].colour;
+      ctx.beginPath(); ctx.arc(X(gx), Y(gy), gr, 0, Math.PI * 2);
+      ctx.fillStyle = pal.ice; ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, 0.12 * scale); ctx.stroke();
+    }
+  }
   for (let a = 0; a < 2; a++) {
     const x = d[3 * a], y = d[3 * a + 1], th = d[3 * a + 2], col = tm[a].colour;
     const r = Math.max(rk.skater_radius * scale, 7);
@@ -315,7 +328,7 @@ function setPlaying(p) {
 /* ---------- reels ---------- */
 function stats() {
   const n = nFrames(), c = [0, 0, 0], f = g().f;
-  for (let i = 0; i < n; i++) { const p = f[i * N + 8]; c[p < 0 ? 2 : p]++; }
+  for (let i = 0, s = N(); i < n; i++) { const p = f[i * s + 8]; c[p < 0 ? 2 : p]++; }
   const tm = g().teams, rows = [];
   const pct = (k) => (100 * c[k] / n).toFixed(0);
   rows.push(["Possession", `<div class="bar"><span style="width:${pct(0)}%;background:${tm[0].colour}"></span><span style="width:${pct(2)}%"></span><span style="width:${pct(1)}%;background:${tm[1].colour}"></span></div>`, `${pct(0)} / ${pct(1)}`]);

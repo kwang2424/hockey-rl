@@ -1,5 +1,5 @@
 {
- "footer": "Recorded with <code>hockey.export</code> from checkpoints in the hockey-rl repository. v8 is <code>checkpoints/v8-screened-50m.pt</code>: 50M steps of self-play PPO, its starting network picked from twelve by a two-stage screen. One unselected game per reel (seed 0), 60 seconds each, deterministic actions. Rebuild with <code>viewer/build_tape.py viewer/tape/reels.json</code>.",
+ "footer": "Recorded with <code>hockey.export</code> from checkpoints in the hockey-rl repository. v8 is <code>checkpoints/v8-screened-50m.pt</code>: 50M steps of self-play PPO, its starting network picked from twelve by a two-stage screen. One unselected game per reel (seed 0), 60 seconds each, deterministic actions. The bottom three reels use the solid net and scripted goalies (<code>Config.goalie</code>, <code>Config.solid_net</code>). Rebuild with <code>viewer/build_tape.py viewer/tape/reels.json</code>.",
  "reels": [
   {
    "id": "self-play",
@@ -13,7 +13,7 @@
    ],
    "note": [
     "Both skaters run identical weights, so red's 3–0 is the luck of this particular minute, not one side playing better.",
-    "Watch how it scores. It never holds the puck: the puck is loose 99% of the game. Instead it strikes the puck on contact and drives it at the net in one touch, so most goals come off the first hit after a faceoff or a loose puck."
+    "Watch where the goals go in. All three enter the net from behind. This game's net had no back or sides, so any puck crossing behind the goal line between the posts counted. v8 learned to fire the puck around the end boards and let it slide across the back of the net. Across 384,000 steps of self-play, 90% of its goals went in this way. The net is now solid in the newer reels (the bottom three)."
    ],
    "steps": 1800,
    "seed": 0
@@ -30,7 +30,7 @@
    ],
    "note": [
     "v6 was the strongest agent before this one and took 70M training steps; v8 took 50M. Over the full ladder v8 wins this matchup 137–101, and this minute goes 4–1.",
-    "Neither side carries the puck, so the game is a race to each loose puck and the direction of the touch. v8 stays a little closer to the puck on average, 10.7 m against 11.9."
+    "All five goals here, v6's included, enter from behind the net, through the same hole in the old net. Both agents learned it; neither ever learned to aim."
    ],
    "steps": 1800,
    "seed": 0
@@ -47,7 +47,7 @@
    ],
    "note": [
     "ChaseBot is a hand-written script: skate to the puck, pick it up, carry it at the net. It holds the puck 43% of this game. v8 never does.",
-    "That one skill, possession, is the gap the learned agents have not closed. v8 loses this matchup 57–309 over the ladder, and 1–7 here. Watch ChaseBot keep the puck on its stick while v8 skates past it."
+    "v8 loses this matchup 57–309 over the ladder, and 1–7 here. ChaseBot's seven goals all cross the goal line from the front; v8's one comes in from behind."
    ],
    "steps": 1800,
    "seed": 0
@@ -65,6 +65,69 @@
    "note": [
     "Same training setup, different starting weights, and this run never learned to play: 2% goals at 3M steps.",
     "Both skaters retreat into their own half, about 12 m deep on average, and stay there while the puck sits loose near centre ice. Nobody scores. Somewhere between a third and a half of fresh runs end up like this, and it is what the screening throws away."
+   ],
+   "steps": 1800,
+   "seed": 0
+  },
+  {
+   "id": "goalie-sniper",
+   "label": "Goalie game: SniperBot",
+   "blurb": "Solid net, scripted goalies",
+   "a": "sniper",
+   "b": "sniper",
+   "names": [
+    "SniperBot",
+    "SniperBot"
+   ],
+   "cfg": {
+    "goalie": true,
+    "solid_net": true
+   },
+   "note": [
+    "This is the newer game. The net has a back and sides, and each net has a scripted goalie (the ring in the defending team's colour). The goalie stands on the line between the puck and its net. It sees the puck 0.2 s late and has a top speed, so it stops shots it has time to reach.",
+    "SniperBot is a hand-written script that carries the puck to within 9 m, then shoots at the corner farther from the goalie. In calibration, a perfectly aimed corner shot scores about 90% of the time from 6 m, 24% from 10 m, and never from 14 m or more. A shot straight at the goalie never scores."
+   ],
+   "steps": 1800,
+   "seed": 0
+  },
+  {
+   "id": "goalie-v8",
+   "label": "Goalie game: v8",
+   "blurb": "The best learned agent, now",
+   "a": "checkpoints/v8-screened-50m.pt",
+   "b": "checkpoints/v8-screened-50m.pt",
+   "names": [
+    "v8",
+    "v8"
+   ],
+   "cfg": {
+    "goalie": true,
+    "solid_net": true
+   },
+   "note": [
+    "The same v8 network, put in the newer game. It was never trained with a goalie, and it cannot see the goalies.",
+    "Its main scoring route is gone. Pucks fired around the boards now bounce off the back of the net. This minute ends 0–0, and over a long sample v8 scores on 0.6% of its shots, against SniperBot's 58%. The next training runs start in this game."
+   ],
+   "steps": 1800,
+   "seed": 0
+  },
+  {
+   "id": "goalie-chase",
+   "label": "Goalie game: SniperBot v ChaseBot",
+   "blurb": "Aiming against not aiming",
+   "a": "sniper",
+   "b": "chase",
+   "names": [
+    "SniperBot",
+    "ChaseBot"
+   ],
+   "cfg": {
+    "goalie": true,
+    "solid_net": true
+   },
+   "note": [
+    "ChaseBot shoots at the middle of the net from up to 17 m, which is exactly where the goalie stands. SniperBot shoots at the open corner from close in. Both scripts play defence the same way.",
+    "Without a goalie, ChaseBot scores on 76% of its shots. With one, it scores on 2%, and this minute goes 3–0 to SniperBot."
    ],
    "steps": 1800,
    "seed": 0

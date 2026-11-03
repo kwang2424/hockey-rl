@@ -53,6 +53,21 @@ OBS_SLICES = {
     "time_left":     slice(33, 34),
 }
 
+# Appended after the 34 slots above, only when Config.goalie is on. Kept out
+# of OBS_SLICES so that dict still tiles the base observation exactly. Every
+# existing checkpoint reads only the first OBS_DIM slots, so it plays the
+# goalie game unchanged -- just blind to the goalies.
+GOALIE_OBS_DIM = 4
+GOALIE_OBS_SLICES = {
+    "atk_goalie_rel": slice(34, 36),   # body frame, / rink_length
+    "dfd_goalie_rel": slice(36, 38),
+}
+
+
+def obs_dim_for(cfg) -> int:
+    """Observation size of the game `cfg` describes."""
+    return OBS_DIM + (GOALIE_OBS_DIM if cfg.goalie else 0)
+
 
 def _rotate_into_body(vec, theta):
     """Rotate world vectors into each agent's body frame.
@@ -103,6 +118,31 @@ class VecHockeyEnv:
         # Mutable so a trainer can anneal it without rebuilding the env. See
         # Config.puck_on_stick_prob.
         self.curriculum_puck_on_stick = float(cfg.puck_on_stick_prob)
+
+        # Per-instance, because it depends on the config. The class attribute
+        # (OBS_DIM) stays for code that only ever sees the base game.
+        self.obs_dim = obs_dim_for(cfg)
+        if cfg.solid_net:
+            # Goals latched as they happen, substep by substep (solid_net).
+            self._scored = np.zeros((num_envs, 2), dtype=bool)
+        if cfg.goalie:
+            # Goalie k guards net k: 0 is the +x net (team B's goalie, facing
+            # A's shots), 1 the -x net. `_goalie_out` points from each net
+            # into the rink.
+            self.goalie_pos = z2(num_envs, 2, 2)
+            self.goalie_vel = z2(num_envs, 2, 2)
+            self._goalie_out = np.array([[-1.0, 0.0], [1.0, 0.0]])
+            # The goalie reacts to where the puck was `goalie_reaction` ago:
+            # a ring buffer of puck states, one slot per physics substep.
+            lag = max(1, int(round(cfg.goalie_reaction / cfg.physics_dt)))
+            self._seen_pos = z2(lag, num_envs, 2)
+            self._seen_vel = z2(lag, num_envs, 2)
+            self._seen_head = 0
+            self.ep_saves = np.zeros((num_envs, 2), dtype=np.int64)
+            # Mutable, like curriculum_puck_on_stick. See Config.goalie_skill_min.
+            self.goalie_skill_range = (float(cfg.goalie_skill_min),
+                                       float(cfg.goalie_skill_max))
+            self.goalie_skill = np.ones((num_envs, 2))
         self.reset()
 
     # ------------------------------------------------------------------
@@ -167,6 +207,19 @@ class VecHockeyEnv:
             self._resolve_skater_pairs()
 
         self._apply_puck_on_stick(idx)
+        if cfg.goalie:
+            self._reset_goalies(idx)
+
+    def _reset_goalies(self, idx):
+        """Goalies start set, on the line to the puck, and remember the puck
+        as stationary where it is now."""
+        self.goalie_pos[idx] = self._goalie_target(self.puck_pos[idx], self.puck_vel[idx])
+        self.goalie_vel[idx] = 0.0
+        self._seen_pos[:, idx] = self.puck_pos[idx]
+        self._seen_vel[:, idx] = self.puck_vel[idx]
+        self.ep_saves[idx] = 0
+        lo, hi = self.goalie_skill_range
+        self.goalie_skill[idx] = self.rng.uniform(lo, hi, (idx.size, 2))
 
     def _apply_puck_on_stick(self, idx):
         """Curriculum: hand some resets a carrier already facing the net.
@@ -248,11 +301,16 @@ class VecHockeyEnv:
         phi_before = self._potential()
 
         self._apply_shots(action[..., 2])
+        if cfg.solid_net:
+            self._scored[:] = False
         for _ in range(cfg.substeps):
             self._substep(action)
 
         self.step_count += 1
-        scored_a, scored_b = rink.in_goal(cfg, self.puck_pos)
+        if cfg.solid_net:
+            scored_a, scored_b = self._scored[:, 0].copy(), self._scored[:, 1].copy()
+        else:
+            scored_a, scored_b = rink.in_goal(cfg, self.puck_pos)
         goal = scored_a | scored_b
         truncated = (self.step_count >= cfg.max_episode_steps) & ~goal
 
@@ -326,6 +384,7 @@ class VecHockeyEnv:
             "ep_len": self.step_count.copy(),
             "ep_shots": self.ep_shots.copy(),
             "ep_possession": self.ep_possession.copy(),
+            **({"ep_saves": self.ep_saves.copy()} if self.cfg.goalie else {}),
         }
 
     # ------------------------------------------------------------------
@@ -367,19 +426,39 @@ class VecHockeyEnv:
         # squeezed out of the rink. Overlapping bodies are a cosmetic
         # violation for one substep; leaving the rink is not.
         self._integrate_skaters(action, dt)
+        if cfg.goalie:
+            self._integrate_goalies(dt)
         self._resolve_skater_pairs()
+        if cfg.goalie:
+            self._resolve_skater_goalies()
         rink.resolve_goal_mouths(cfg, self.skater_pos, self.skater_vel,
                                  cfg.skater_radius, cfg.skater_restitution)
+        if cfg.solid_net:
+            rink.resolve_net_boxes(cfg, self.skater_pos, self.skater_vel,
+                                   cfg.skater_radius, cfg.skater_restitution,
+                                   open_mouth=False)
         rink.resolve_boards(cfg, self.skater_pos, self.skater_vel,
                             cfg.skater_radius, cfg.skater_restitution, 0.92)
 
         self.cooldown = np.maximum(self.cooldown - dt, 0.0)
         self._update_possession()
+        if cfg.solid_net:
+            prev = self.puck_pos.copy()
         self._integrate_puck(dt)
+        if cfg.solid_net:
+            a_in, b_in = rink.crossed_goal_line(cfg, prev, self.puck_pos)
+            self._scored[:, 0] |= a_in
+            self._scored[:, 1] |= b_in
 
         rink.resolve_posts(cfg, self.puck_pos, self.puck_vel,
                            cfg.puck_radius, cfg.post_restitution)
+        if cfg.goalie:
+            self._resolve_puck_goalies()
         self._resolve_puck_bodies()
+        if cfg.solid_net:
+            rink.resolve_net_boxes(cfg, self.puck_pos, self.puck_vel, cfg.puck_radius,
+                                   cfg.net_restitution, open_mouth=True,
+                                   skip=self._scored.any(axis=1))
         rink.resolve_boards(cfg, self.puck_pos, self.puck_vel, cfg.puck_radius,
                             cfg.board_restitution, cfg.board_tangent_keep)
 
@@ -531,6 +610,121 @@ class VecHockeyEnv:
             self.possessor = np.where(hit & (self.possessor >= 0), -1, self.possessor)
 
     # ------------------------------------------------------------------
+    # goalies (only when Config.goalie)
+    # ------------------------------------------------------------------
+    def _to_net(self, p):
+        """World points (..., 2 nets, 2) -> (out, lateral) in each net's frame:
+        `out` is the distance in front of the goal line, `lateral` along it."""
+        d = p - self._goal_centers
+        return (d * self._goalie_out).sum(-1), d[..., 1]
+
+    def _from_net(self, out, lateral):
+        return (self._goal_centers + out[..., None] * self._goalie_out
+                + np.stack([np.zeros_like(lateral), lateral], axis=-1))
+
+    def _goalie_target(self, puck_pos, puck_vel, goalie_pos=None):
+        """Where each goalie wants to stand, (m, 2, 2).
+
+        Normally on the line from its net centre to the puck, goalie_depth
+        out (angle capped, so a puck behind the net puts it on the post). When
+        the puck is travelling at the net, onto the shot line instead, at the
+        goalie's current depth -- the shortest move that blocks it. Without
+        `goalie_pos` (at reset) only the positioning rule applies.
+        """
+        cfg = self.cfg
+        p = puck_pos[:, None, :]
+        v = puck_vel[:, None, :]
+        out, lat = self._to_net(p)
+        ang = np.clip(np.arctan2(lat, out), -cfg.goalie_max_angle, cfg.goalie_max_angle)
+        t_out = cfg.goalie_depth * np.cos(ang)
+        t_lat = cfg.goalie_depth * np.sin(ang)
+
+        if goalie_pos is not None:
+            g_out, _ = self._to_net(goalie_pos)
+            g_out = np.clip(g_out, cfg.goalie_min_out, cfg.goalie_max_out)
+            v_out = (v * self._goalie_out).sum(-1)
+            v_lat = v[..., 1] * np.ones_like(v_out)
+            closing = -v_out
+            time_to = (out - g_out) / np.maximum(closing, EPS)
+            lat_at = lat + v_lat * time_to
+            shot = ((closing > cfg.goalie_shot_speed) & (out > g_out)
+                    & (np.abs(lat_at) < cfg.goal_half_width + cfg.goalie_radius))
+            t_out = np.where(shot, g_out, t_out)
+            t_lat = np.where(shot, lat_at, t_lat)
+
+        t_out = np.clip(t_out, cfg.goalie_min_out, cfg.goalie_max_out)
+        t_lat = np.clip(t_lat, -cfg.goalie_max_lateral, cfg.goalie_max_lateral)
+        return self._from_net(t_out, t_lat)
+
+    def _integrate_goalies(self, dt):
+        cfg = self.cfg
+        # Read the puck as it was `goalie_reaction` ago, then record it now.
+        h = self._seen_head
+        seen_p = self._seen_pos[h].copy()
+        seen_v = self._seen_vel[h].copy()
+        self._seen_pos[h] = self.puck_pos
+        self._seen_vel[h] = self.puck_vel
+        self._seen_head = (h + 1) % self._seen_pos.shape[0]
+
+        target = self._goalie_target(seen_p, seen_v, self.goalie_pos)
+        skill = self.goalie_skill[..., None]
+        desired = (target - self.goalie_pos) * cfg.goalie_gain
+        mag = np.linalg.norm(desired, axis=-1, keepdims=True)
+        desired *= np.minimum(1.0, skill * cfg.goalie_max_speed / np.maximum(mag, EPS))
+        dv = desired - self.goalie_vel
+        mag = np.linalg.norm(dv, axis=-1, keepdims=True)
+        dv *= np.minimum(1.0, skill * cfg.goalie_accel * dt / np.maximum(mag, EPS))
+        self.goalie_vel += dv
+        self.goalie_pos += self.goalie_vel * dt
+
+        # Never leave the crease box; stop dead against its edge.
+        out, lat = self._to_net(self.goalie_pos)
+        c_out = np.clip(out, cfg.goalie_min_out, cfg.goalie_max_out)
+        c_lat = np.clip(lat, -cfg.goalie_max_lateral, cfg.goalie_max_lateral)
+        clamped = (c_out != out) | (c_lat != lat)
+        self.goalie_pos = self._from_net(c_out, c_lat)
+        self.goalie_vel = np.where(clamped[..., None], 0.0, self.goalie_vel)
+
+    def _resolve_skater_goalies(self):
+        """Skaters bounce off goalies; a goalie cannot be pushed."""
+        cfg = self.cfg
+        min_d = cfg.skater_radius + cfg.goalie_radius
+        for k in range(2):
+            d = self.skater_pos - self.goalie_pos[:, k:k + 1]        # (n, 2, 2)
+            dist = np.linalg.norm(d, axis=-1)
+            hit = dist < min_d
+            if not np.any(hit):
+                continue
+            n = d / np.maximum(dist, EPS)[..., None]
+            self.skater_pos += np.where(hit, min_d - dist, 0.0)[..., None] * n
+            rel = np.sum((self.skater_vel - self.goalie_vel[:, k:k + 1]) * n, axis=-1)
+            approaching = hit & (rel < 0.0)
+            self.skater_vel -= np.where(approaching, (1.0 + cfg.skater_restitution) * rel,
+                                        0.0)[..., None] * n
+
+    def _resolve_puck_goalies(self):
+        """Puck off the goalie. Like a skater body check, contact knocks a
+        carried puck loose. A contact with a puck travelling at the net counts
+        as a save for that goalie (ep_saves)."""
+        cfg = self.cfg
+        min_d = cfg.puck_radius + cfg.goalie_radius
+        for k in range(2):
+            d = self.puck_pos - self.goalie_pos[:, k]
+            dist = np.linalg.norm(d, axis=-1)
+            hit = dist < min_d
+            if not np.any(hit):
+                continue
+            n = d / np.maximum(dist, EPS)[:, None]
+            rel = np.sum((self.puck_vel - self.goalie_vel[:, k]) * n, axis=-1)
+            approaching = hit & (rel < 0.0)
+            at_net = (self.puck_vel * self._goalie_out[k]).sum(-1) < -cfg.goalie_shot_speed
+            self.ep_saves[:, k] += approaching & at_net
+            self.puck_pos += np.where(hit, min_d - dist, 0.0)[:, None] * n
+            self.puck_vel += np.where(approaching, -(1.0 + cfg.goalie_restitution) * rel,
+                                      0.0)[:, None] * n
+            self.possessor = np.where(hit & (self.possessor >= 0), -1, self.possessor)
+
+    # ------------------------------------------------------------------
     # reward
     # ------------------------------------------------------------------
     def _potential(self):
@@ -566,7 +760,8 @@ class VecHockeyEnv:
     # observations
     # ------------------------------------------------------------------
     def observe(self):
-        """Egocentric, team-canonical observations of shape (n, 2, OBS_DIM)."""
+        """Egocentric, team-canonical observations of shape (n, 2, obs_dim):
+        OBS_DIM slots, plus GOALIE_OBS_DIM more when Config.goalie is on."""
         cfg = self.cfg
         th = self.theta                                   # (n, 2)
         sign = np.array([1.0, -1.0])[None, :]             # team canonicalisation
@@ -644,6 +839,11 @@ class VecHockeyEnv:
             ],
             axis=-1,
         )
+        if cfg.goalie:
+            # Agent a attacks net a, so goalie a is the one it shoots at.
+            atk_g = _rotate_into_body(self.goalie_pos - self.skater_pos, th) / cfg.rink_length
+            dfd_g = _rotate_into_body(self.goalie_pos[:, ::-1] - self.skater_pos, th) / cfg.rink_length
+            obs = np.concatenate([obs, atk_g, dfd_g], axis=-1)
         return np.clip(obs, -10.0, 10.0).astype(np.float32)
 
     # ------------------------------------------------------------------
@@ -655,4 +855,5 @@ class VecHockeyEnv:
             "puck_pos": self.puck_pos.copy(),
             "possessor": self.possessor.copy(),
             "blade_pos": self.blade_points()[0],
+            **({"goalie_pos": self.goalie_pos.copy()} if self.cfg.goalie else {}),
         }

@@ -21,6 +21,7 @@ import numpy as np
 import torch
 
 from hockey.config import DEFAULT
+from hockey.env import VecHockeyEnv
 from hockey.bots import ChaseBot, RandomBot
 from hockey.rating import rating, share_logit
 from hockey.rollout import play
@@ -132,8 +133,44 @@ def init_from_checkpoint(trainer, path):
     trainer, for fine-tuning. Loading draws no randomness, so the run's random
     streams are exactly those of a fresh run with the same seed."""
     ck = torch.load(path, map_location=trainer.device, weights_only=False)
-    trainer.net.load_state_dict(ck["net"])
-    trainer.norm.load_state_dict(ck["norm"])
+    net_sd, norm_sd = widen_checkpoint(ck["net"], ck["norm"], trainer.env)
+    trainer.net.load_state_dict(net_sd)
+    trainer.norm.load_state_dict(norm_sd)
+
+
+def widen_checkpoint(net_sd, norm_sd, env, sample_steps=300):
+    """Fit a checkpoint trained on a shorter observation to `env`'s.
+
+    Observations only grow by appending slots (the goalie game adds four), so
+    the old inputs keep their weights and each new input gets a zero weight
+    in both trunks' first layer: the widened network behaves exactly like the
+    old one until training teaches it to use what it can now see. The new
+    slots' normaliser statistics are estimated from a short random-action
+    game in a separate env with its own seed, so no training randomness is
+    drawn. A checkpoint that already matches is returned unchanged.
+    """
+    old = int(np.asarray(norm_sd["mean"]).shape[-1])
+    new = env.obs_dim
+    if old == new:
+        return net_sd, norm_sd
+    if old > new:
+        raise ValueError(f"checkpoint has {old} inputs, this game only {new}")
+    net_sd = dict(net_sd)
+    for trunk in ("actor", "critic"):
+        w = net_sd[f"{trunk}.0.weight"]
+        pad = torch.zeros(w.shape[0], new - old, dtype=w.dtype, device=w.device)
+        net_sd[f"{trunk}.0.weight"] = torch.cat([w, pad], dim=1)
+
+    probe = VecHockeyEnv(num_envs=64, cfg=env.cfg, seed=987_654)
+    rng = np.random.default_rng(987_654)
+    rows = [probe.observe()]
+    for _ in range(sample_steps):
+        rows.append(probe.step(rng.uniform(-1, 1, (64, 2, 3)))[0])
+    extra = np.concatenate(rows).reshape(-1, new)[:, old:].astype(np.float64)
+    norm_sd = dict(norm_sd)
+    norm_sd["mean"] = np.concatenate([np.asarray(norm_sd["mean"]), extra.mean(0)])
+    norm_sd["var"] = np.concatenate([np.asarray(norm_sd["var"]), extra.var(0)])
+    return net_sd, norm_sd
 
 
 def resolve_anchors(specs, seed=12345):

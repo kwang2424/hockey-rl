@@ -28,10 +28,16 @@ Schema (v1), all lengths in metres, angles in radians, +y is up:
       "puck": [x, y],
       "possessor": -1,           # -1 loose, else skater index
       "score": [0, 0],
-      "event": "goal_a"          # optional; omitted on ordinary frames
+      "event": "goal_a",         # optional; omitted on ordinary frames
+      "goalies": [[x, y], [x, y]]  # only in goalie games; 0 guards the +x net
     }
   ]
 }
+
+Goalie games (Config.goalie) add "goalies" to every frame and
+"goalie_radius" to "rink"; "rink.solid_net" says whether the net had a back
+and sides. Both are additions, so version-1 readers that ignore unknown keys
+still replay the skaters and puck.
 
 Frames are absolute state, not deltas, so a viewer can scrub to any index
 without replaying from the start.
@@ -71,6 +77,9 @@ def record(policy_a, policy_b, steps=900, seed=0, cfg: Config = DEFAULT,
             "possessor": int(env.possessor[0]),
             "score": list(score),
         }
+        if cfg.goalie:
+            frame["goalies"] = [[round(float(env.goalie_pos[0, k, 0]), 4),
+                                 round(float(env.goalie_pos[0, k, 1]), 4)] for k in range(2)]
 
         obs, _, goal, trunc, info = env.step(act)
         if info["goal_a"][0]:
@@ -96,6 +105,8 @@ def record(policy_a, policy_b, steps=900, seed=0, cfg: Config = DEFAULT,
             "skater_radius": cfg.skater_radius,
             "puck_radius": cfg.puck_radius,
             "blade_offset": cfg.blade_offset,
+            "solid_net": bool(cfg.solid_net),
+            **({"goalie_radius": cfg.goalie_radius} if cfg.goalie else {}),
         },
         "teams": [
             {"name": str(names[0]), "colour": "#d63e3e", "attacks_x": 1},

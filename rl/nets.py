@@ -116,8 +116,16 @@ class TorchPolicy:
         self.norm = norm
         self.device = device
 
+    @property
+    def obs_dim(self):
+        return int(np.asarray(self.norm.mean).shape[-1])
+
     @torch.no_grad()
     def act(self, obs, deterministic=True):
+        # Observations only ever grow by appending slots (the goalie game adds
+        # four at the end), so a network trained on a shorter observation sees
+        # exactly what it was trained on by reading the leading slots.
+        obs = obs[..., :self.obs_dim]
         shape = obs.shape[:-1]
         flat = self.norm(obs.reshape(-1, obs.shape[-1]))
         t = torch.as_tensor(flat, device=self.device)

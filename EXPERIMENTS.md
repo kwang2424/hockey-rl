@@ -109,6 +109,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | puck-scratch | from scratch, 8 networks x {control, possession_rate, puck_goal_speed_rate}, 3M | 3M x 24 | 1 and 0 eligible pairs | **insufficient data** -- at 3M runs barely touch the puck |
 | hold-rule | fine-tune v8 20M under min_hold_time 0 / 0.2 / 0.5 s | 20M x 3 | on target 2.7% / 0.8% | **fail** on aiming; post hoc, the 0.5 s arm is far better vs ChaseBot (0.362 vs v8's 0.156), mostly defensively |
 | hold-aim | 0.5 s rule, +/- puck_goal_speed_rate=0.01, fine-tuned 20M from hold05 | 20M x 2 | on target 1.5% vs 1.9% | **fail**; post hoc, learners aim roughly (~35 deg) from centre ice, ChaseBot precisely (0.6 deg) from 17 m |
+| net-hole | where goals enter the net; then solid net + scripted goalie, calibrated | no training | 90% of v8's goals enter from behind/side | **sim bug**: the net had no back or sides; fixed behind `solid_net`, goalie added behind `goalie` |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -1036,15 +1037,97 @@ What this says:
   25 m -- centre ice -- as soon as they are allowed. ChaseBot carries the puck
   in to about 17 m, lines up almost exactly, and only then shoots: only 19% of
   its possessions end in a shot.
-- **In a goalie-less game the long-range strategy pays.** Shots from centre ice
+- ~~**In a goalie-less game the long-range strategy pays.** Shots from centre ice
   with ~35 degree aim, plus volume and rebounds, score 3-4 goals a minute in
   self-play. Carrying closer risks the puck (a third to nearly half of
   possessions under the rule are lost before a shot) for little gain, because
-  nothing stops a long shot that happens to bounce in.
+  nothing stops a long shot that happens to bounce in.~~
+  *Correction (see net-hole):* the long-range strategy paid because of a hole
+  in the simulator, not because the net was empty. The net had no back or
+  sides, so a puck crossing behind the goal line anywhere between the posts'
+  lines scored, including one fired around the end boards. 90% of v8's goals
+  went in that way. "Volume and rebounds" was a guess that was never checked.
 
-The lever this points at is the one real hockey uses: **a goalie.** It makes a
-rough shot from centre ice fail, so carrying in and picking a spot become
-necessary rather than merely rewarded.
+~~The lever this points at is the one real hockey uses: **a goalie.**~~
+*Correction (see net-hole):* the first lever was the net itself. With a
+solid net, v8's goals per shot fall from 0.44 to 0.06 and ChaseBot's barely
+move. The goalie comes second, and is now built.
+
+### net-hole: the net had no back, and the goalie game
+
+Measuring how v8 beat a first version of the scripted goalie found a
+simulator bug instead. `rink.in_goal` counts any puck past the goal line
+within the posts' width, all the way back to the end boards. No back or side
+netting stopped a puck reaching that region from behind or beside the net.
+
+Where goals entered, 128 envs x 3000 steps of self-play each (ordinary game;
+a goal "from the front" means the puck was in front of the goal line the
+step before):
+
+| self-play | goals | from the front | from behind or beside |
+|---|---|---|---|
+| ChaseBot | 1743 | 1554 | 189 (11%) |
+| v8 | 1104 | 107 | **997 (90%)** |
+| v6 | 887 | 94 | **793 (89%)** |
+
+904 of v8's 992 goals against that first goalie touched the boards after the
+shot. Every v8 goal on the Game Tape's first two reels goes in from behind.
+The learned agents found the hole and built their game on it. That explains
+why rewards (puck-finetune), a hold rule (hold-rule) and an aiming reward
+(hold-aim) never produced aim: aiming did not pay. Those results stand as
+measured, but their explanations should be read through this one.
+
+**Fix: `Config.solid_net`** (off by default so every earlier run reproduces
+bit for bit; new work should turn it on). The net is a box `goal_depth` deep
+whose back and sides are solid for the puck and for skaters, and a goal is
+the puck crossing the goal line between the posts from the front, checked
+every physics substep.
+
+**Scripted goalie: `Config.goalie`** (also off by default). One per net. It is
+a solid circle that cannot be pushed. It stands on the line from its net to
+the puck and, when the puck is travelling at the net, moves onto the shot
+line. It sees the puck `goalie_reaction` (0.2 s) late. Its speed and
+acceleration scale with a skill drawn per episode from [0.25, 1.0]: a fixed
+goalie made the save/goal boundary a cliff (aimed corners went from 90% in
+to 0% within 2-4 m), and a spread turns it into a slope. It never leaves a
+crease box in front of the goal line. Skaters see both goalies: four slots
+appended to the observation (38 instead of 34). The trainer, the loader and
+the replay format follow the game's size. Old checkpoints read only their 34
+slots, so they play the goalie game blind to the goalies. `--init-from` an old
+checkpoint widens its first layer with zero weights, so it starts out playing
+exactly as before.
+
+Calibration (`analysis/goalie_calibration.py`): controlled shots at 25 m/s
+with nobody else in the play, solid net, goal rate by distance:
+
+| shot | 4 m | 6 m | 8 m | 10 m | 14 m | 20 m | 26 m |
+|---|---|---|---|---|---|---|---|
+| no goalie, aimed at a corner | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | ~1 | ~1 |
+| goalie, aimed at a corner | 0.85 | 0.93 | 0.83 | 0.24 | 0.00 | 0.00 | 0.00 |
+| goalie, aimed at the centre | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| goalie, heading error sd 10 deg | 0.23 | 0.22 | 0.11 | 0.01 | 0 | 0 | 0 |
+| goalie, heading error sd 32 deg (learners' accuracy) | 0.11 | 0.08 | 0.06 | 0.01 | 0 | 0 | 0 |
+| static goalie (skill 0; a curriculum start), corner | 0.85 | 0.94 | 0.94 | 0.94 | 0.99 | 1.00 | 1.00 |
+
+Game level, self-play, 128 envs x 1500 steps, goals per shot:
+
+| self-play | open net | solid net | solid net + goalie |
+|---|---|---|---|
+| ChaseBot (aims at the centre, fires inside 17 m) | 0.85 | 0.76 | 0.024 |
+| SniperBot (new: carries to 9 m, aims at the far corner) | 0.77 | 0.88 | **0.58** |
+| v8 | 0.44 | 0.055 | 0.006 |
+
+That is the behaviour asked for: shots straight at the goalie and rough
+shots fail, close aimed shots score. v8's skill was almost entirely the
+hole. `SniperBot` is a new scripted reference for the goalie game, because
+ChaseBot, which aims at the middle of the net, almost never scores there.
+
+Not done yet: no agent has been trained in the new game. Things to
+consider for that run: the anchors (`v2`, `v6` and ChaseBot were all measured
+in the open-net game, so the rating must be re-anchored, e.g. on SniperBot);
+a goalie-skill curriculum (`VecHockeyEnv.goalie_skill_range`, starting from
+the static goalie); and whether `min_hold_time` is still needed once aiming
+pays. The goalie does not freeze the puck, so rebounds stay live.
 
 ### The reproducibility checks were broken
 

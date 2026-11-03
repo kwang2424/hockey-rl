@@ -18,6 +18,7 @@ def play(policy_a, policy_b, num_envs=1, steps=600, seed=0, cfg: Config = DEFAUL
 
     goals = np.zeros(2, dtype=np.int64)
     shots = np.zeros(2, dtype=np.int64)
+    saves = np.zeros(2, dtype=np.int64)      # goalie stops against each team
     possession = np.zeros(2, dtype=np.float64)
     episodes = 0
     ep_lengths = []
@@ -42,6 +43,9 @@ def play(policy_a, policy_b, num_envs=1, steps=600, seed=0, cfg: Config = DEFAUL
             shots += info["ep_shots"][ended].sum(axis=0)
             possession += info["ep_possession"][ended].sum(axis=0)
             ep_lengths.extend(info["ep_len"][ended].tolist())
+            if "ep_saves" in info:
+                # Goalie 0 guards the +x net, which team A attacks.
+                saves += info["ep_saves"][ended].sum(axis=0)
         if collect_frames:
             score[0] += int(info["goal_a"][env_idx])
             score[1] += int(info["goal_b"][env_idx])
@@ -61,4 +65,7 @@ def play(policy_a, policy_b, num_envs=1, steps=600, seed=0, cfg: Config = DEFAUL
         "mean_ep_len": float(np.mean(ep_lengths)) if ep_lengths else float("nan"),
         "sim_minutes": minutes,
     }
+    if cfg.goalie:
+        stats["saves_vs_a"] = int(saves[0])
+        stats["saves_vs_b"] = int(saves[1])
     return stats, frames

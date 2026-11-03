@@ -99,3 +99,17 @@ def test_a_still_game_still_exports_cleanly():
     assert len(t["frames"]) == 30
     assert t["final_score"] == [0, 0]
     json.dumps(t)
+
+
+def test_goalie_games_add_goalies_without_breaking_v1():
+    from dataclasses import replace
+    cfg = replace(C, goalie=True, solid_net=True)
+    t = record(ChaseBot(cfg), ChaseBot(cfg), steps=60, seed=0, cfg=cfg)
+    assert t["version"] == SCHEMA_VERSION
+    assert REQUIRED_RINK_KEYS <= set(t["rink"])
+    assert t["rink"]["solid_net"] is True and t["rink"]["goalie_radius"] == cfg.goalie_radius
+    for fr in t["frames"]:
+        assert len(fr["goalies"]) == 2
+        assert fr["goalies"][0][0] > 0 > fr["goalies"][1][0]     # 0 guards +x
+    plain = record(ChaseBot(), ChaseBot(), steps=5, seed=0)
+    assert "goalies" not in plain["frames"][0] and "goalie_radius" not in plain["rink"]

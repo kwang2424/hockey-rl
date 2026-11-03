@@ -91,3 +91,51 @@ class ChaseBot(Policy):
         if self.noise > 0 and not deterministic:
             action[..., :2] += self.rng.normal(0.0, self.noise, action[..., :2].shape)
         return np.clip(action, -1.0, 1.0)
+
+
+class SniperBot(ChaseBot):
+    """ChaseBot that carries in close and aims for a corner.
+
+    ChaseBot aims at the centre of the net and fires anywhere inside 17 m
+    once the net is within 0.30 rad of its heading. Against a goalie, which
+    stands on exactly that line, it almost never scores, so it is no use as a
+    reference for the goalie game. This bot carries the puck to within
+    `shoot_range`, picks the corner farther from the goalie (when the
+    observation includes the goalies; otherwise the corner nearer its
+    current heading), and fires only once lined up on it within `aim_tol`.
+    Off the puck it plays exactly like ChaseBot.
+    """
+
+    def __init__(self, cfg: Config = DEFAULT, shoot_range=9.0, aim_tol=0.03,
+                 corner=0.75, **kw):
+        super().__init__(cfg, shoot_range=shoot_range, aim_tol=aim_tol, **kw)
+        self.corner = corner
+
+    def act(self, obs, deterministic=True):
+        from .env import GOALIE_OBS_SLICES
+        cfg = self.cfg
+        action = super().act(obs, deterministic)
+        g = lambda k: obs[..., OBS_SLICES[k]]
+        mine = g("possession")[..., 0] > 0.5
+        atk_rel = g("atk_goal_rel") * cfg.rink_length
+        h = g("heading_rel")                      # heading vs attack direction
+        # The goal line's +y direction, in the body frame.
+        lateral = np.stack([h[..., 1], h[..., 0]], axis=-1)
+        corners = atk_rel[..., None, :] + np.array([1.0, -1.0])[:, None] * self.corner * lateral[..., None, :]
+        if obs.shape[-1] >= GOALIE_OBS_SLICES["atk_goalie_rel"].stop:
+            goalie = obs[..., GOALIE_OBS_SLICES["atk_goalie_rel"]] * cfg.rink_length
+            far = np.linalg.norm(corners - goalie[..., None, :], axis=-1)
+            pick = np.argmax(far, axis=-1)
+        else:
+            ang = np.abs(np.arctan2(corners[..., 1], corners[..., 0]))
+            pick = np.argmin(ang, axis=-1)
+        aim = np.take_along_axis(corners, pick[..., None, None], -2)[..., 0, :]
+        dist = np.linalg.norm(aim, axis=-1)
+        angle = np.arctan2(aim[..., 1], aim[..., 0])
+        turn = np.clip(2.2 * angle, -1.0, 1.0)
+        forward = np.clip(1.3 * np.cos(angle), -1.0, 1.0)
+        shoot = np.where((dist < self.shoot_range) & (np.abs(angle) < self.aim_tol), 1.0, -1.0)
+        carry = np.stack([forward, turn, shoot], axis=-1)
+        if self.noise > 0 and not deterministic:
+            carry[..., :2] += self.rng.normal(0.0, self.noise, carry[..., :2].shape)
+        return np.where(mine[..., None], np.clip(carry, -1.0, 1.0), action)

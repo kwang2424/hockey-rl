@@ -133,6 +133,61 @@ def resolve_goal_mouths(cfg: Config, pos, vel, radius, restitution):
         vel -= np.where(approaching[..., None], (1.0 + restitution) * vn[..., None] * n, 0.0)
 
 
+def resolve_net_boxes(cfg: Config, pos, vel, radius, restitution, open_mouth, skip=None):
+    """Keep bodies out of the nets' boxes (Config.solid_net), in place.
+
+    Each net is the box from the goal line to goal_depth behind it, post to
+    post. A body overlapping it is pushed out through the nearest face and
+    its velocity into that face reflected. With `open_mouth` (the puck) the
+    front face is open between the posts, because crossing it is a goal --
+    the caller detects that and passes the scored pucks in `skip`.
+    """
+    gh, depth = cfg.goal_half_width, cfg.goal_depth
+    for sgn in (1.0, -1.0):
+        u = (pos[..., 0] - sgn * cfg.goal_line_x) * sgn      # depth behind the line
+        v = pos[..., 1]
+        inside = (u > -radius) & (u < depth + radius) & (np.abs(v) < gh + radius)
+        if open_mouth:
+            # In front of the line between the posts is open ice, not net.
+            inside &= ~((u <= 0.0) & (np.abs(v) < gh))
+        if skip is not None:
+            inside &= ~skip
+        if not np.any(inside):
+            continue
+        pen_side = gh + radius - np.abs(v)
+        pen_back = depth + radius - u
+        pen_front = u + radius
+        if open_mouth:
+            # Between the posts the front is the mouth, not a wall.
+            pen_front = np.where(np.abs(v) < gh, np.inf, pen_front)
+        pen = np.stack([pen_side, pen_back, pen_front], axis=-1)
+        face = np.argmin(pen, axis=-1)
+        depth_in = np.take_along_axis(pen, face[..., None], -1)[..., 0]
+        side_n = np.stack([np.zeros_like(v), np.where(v >= 0.0, 1.0, -1.0)], axis=-1)
+        back_n = np.broadcast_to(np.array([sgn, 0.0]), side_n.shape)
+        front_n = -back_n
+        n = np.where((face == 0)[..., None], side_n,
+                     np.where((face == 1)[..., None], back_n, front_n))
+        pos += np.where(inside, depth_in, 0.0)[..., None] * n
+        vn = np.sum(vel * n, axis=-1)
+        into = inside & (vn < 0.0)
+        vel -= np.where(into[..., None], (1.0 + restitution) * vn[..., None] * n, 0.0)
+
+
+def crossed_goal_line(cfg: Config, prev, pos):
+    """(scored_plus_x, scored_minus_x): the puck crossed a goal line between
+    the posts, from the front, moving from `prev` to `pos`."""
+    out = []
+    for sgn in (1.0, -1.0):
+        u0 = (prev[..., 0] - sgn * cfg.goal_line_x) * sgn
+        u1 = (pos[..., 0] - sgn * cfg.goal_line_x) * sgn
+        cross = (u0 <= 0.0) & (u1 > 0.0)
+        frac = np.where(cross, -u0 / np.where(cross, u1 - u0, 1.0), 0.0)
+        y_at = prev[..., 1] + frac * (pos[..., 1] - prev[..., 1])
+        out.append(cross & (np.abs(y_at) <= cfg.goal_half_width))
+    return out[0], out[1]
+
+
 def in_goal(cfg: Config, pos: np.ndarray):
     """(scored_plus_x, scored_minus_x) masks for a puck at ``pos``."""
     inside_mouth = np.abs(pos[..., 1]) <= cfg.goal_half_width

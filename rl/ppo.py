@@ -22,7 +22,7 @@ import torch.nn as nn
 
 from hockey.config import Config, DEFAULT
 from hockey.bots import ChaseBot
-from hockey.env import VecHockeyEnv, OBS_DIM, ACT_DIM
+from hockey.env import VecHockeyEnv, ACT_DIM
 
 CHASE_OPPONENT = -2   # opp_id sentinel for the scripted opponent
 from .nets import ActorCritic, RunningNorm, TorchPolicy
@@ -135,7 +135,7 @@ class PPOTrainer:
                                         lr=self.p.lr, eps=1e-5)
         else:
             self.opt = torch.optim.Adam(self.net.parameters(), lr=self.p.lr, eps=1e-5)
-        self.norm = RunningNorm(OBS_DIM)
+        self.norm = RunningNorm(self.env.obs_dim)
 
         self.pool = []                                    # frozen state_dicts
         self.pool_nets = []
@@ -173,7 +173,7 @@ class PPOTrainer:
         follows `seed` unchanged, and only the starting weights differ.
         """
         def build():
-            return ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
+            return ActorCritic(self.env.obs_dim, ACT_DIM, self.p.hidden, self.p.init_log_std,
                                self.p.bounded_mean, self.p.max_log_std).to(self.device)
         if self.p.init_seed < 0 or self.p.init_seed == self.p.seed:
             return build()
@@ -197,7 +197,7 @@ class PPOTrainer:
 
     def _snapshot(self):
         sd = copy.deepcopy({k: v.detach().cpu().clone() for k, v in self.net.state_dict().items()})
-        net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
+        net = ActorCritic(self.env.obs_dim, ACT_DIM, self.p.hidden, self.p.init_log_std,
                           self.p.bounded_mean, self.p.max_log_std)
         net.load_state_dict(sd)
         net.eval()
@@ -267,8 +267,9 @@ class PPOTrainer:
         """One rollout. Returns flattened tensors plus a learner mask."""
         p, n_env = self.p, self.p.num_envs
         T = p.rollout_steps
+        D = self.env.obs_dim
 
-        obs_buf = np.zeros((T, n_env, 2, OBS_DIM), dtype=np.float32)
+        obs_buf = np.zeros((T, n_env, 2, D), dtype=np.float32)
         act_buf = np.zeros((T, n_env, 2, ACT_DIM), dtype=np.float32)
         logp_buf = np.zeros((T, n_env, 2), dtype=np.float32)
         val_buf = np.zeros((T, n_env, 2), dtype=np.float32)
@@ -282,10 +283,10 @@ class PPOTrainer:
 
         for t in range(T):
             raw = self.env.observe()
-            norm = self.norm(raw.reshape(-1, OBS_DIM), update=True).reshape(n_env, 2, OBS_DIM)
+            norm = self.norm(raw.reshape(-1, D), update=True).reshape(n_env, 2, D)
             obs_buf[t] = norm
 
-            flat = torch.as_tensor(norm.reshape(-1, OBS_DIM), device=self.device)
+            flat = torch.as_tensor(norm.reshape(-1, D), device=self.device)
             with torch.no_grad():
                 a, lp, v = self.net.act(flat)
             a = a.cpu().numpy().reshape(n_env, 2, ACT_DIM)
@@ -313,7 +314,7 @@ class PPOTrainer:
             trunc_buf[t] = trunc
 
             if trunc.any():
-                fo = self.norm(info["final_obs"][trunc].reshape(-1, OBS_DIM))
+                fo = self.norm(info["final_obs"][trunc].reshape(-1, D))
                 with torch.no_grad():
                     fv = self.net.value(torch.as_tensor(fo, device=self.device))
                 tval_buf[t, trunc] = fv.cpu().numpy().reshape(-1, 2)
@@ -326,16 +327,16 @@ class PPOTrainer:
 
         with torch.no_grad():
             last_raw = self.env.observe()
-            last = self.norm(last_raw.reshape(-1, OBS_DIM)).reshape(n_env, 2, OBS_DIM)
+            last = self.norm(last_raw.reshape(-1, D)).reshape(n_env, 2, D)
             last_v = self.net.value(
-                torch.as_tensor(last.reshape(-1, OBS_DIM), device=self.device)
+                torch.as_tensor(last.reshape(-1, D), device=self.device)
             ).cpu().numpy().reshape(n_env, 2)
 
         adv, ret = self._gae(rew_buf, val_buf, done_buf, trunc_buf, last_v, tval_buf)
         self.global_step += T * n_env
 
         batch = dict(
-            obs=obs_buf.reshape(-1, OBS_DIM),
+            obs=obs_buf.reshape(-1, D),
             act=act_buf.reshape(-1, ACT_DIM),
             logp=logp_buf.reshape(-1),
             adv=adv.reshape(-1),
@@ -488,7 +489,7 @@ class PPOTrainer:
         if "opp_id" in ck:
             self.opp_id = np.asarray(ck["opp_id"]).copy()
         for sd in ck.get("pool", []):
-            net = ActorCritic(OBS_DIM, ACT_DIM, self.p.hidden, self.p.init_log_std,
+            net = ActorCritic(self.env.obs_dim, ACT_DIM, self.p.hidden, self.p.init_log_std,
                               self.p.bounded_mean, self.p.max_log_std)
             net.load_state_dict(sd)
             net.eval()
@@ -508,12 +509,18 @@ def load_policy(path, device="cpu"):
     """Rehydrate a saved checkpoint into a drop-in Policy."""
     ck = torch.load(path, map_location=device, weights_only=False)
     hidden = tuple(ck["ppo_config"].get("hidden", (128, 128)))
-    net = ActorCritic(OBS_DIM, ACT_DIM, hidden,
+    # The input size comes from the checkpoint, not the current game: a
+    # goalie-game network has more inputs than a base-game one. A network
+    # given a longer observation than it was trained on reads only its own
+    # leading slots (TorchPolicy), so old checkpoints play the goalie game
+    # blind to the goalies.
+    obs_dim = int(np.asarray(ck["norm"]["mean"]).shape[-1])
+    net = ActorCritic(obs_dim, ACT_DIM, hidden,
                       ck["ppo_config"].get("init_log_std", -0.5),
                       ck["ppo_config"].get("bounded_mean", False),
                       ck["ppo_config"].get("max_log_std", 10.0))
     net.load_state_dict(ck["net"])
     net.eval()
-    norm = RunningNorm(OBS_DIM)
+    norm = RunningNorm(obs_dim)
     norm.load_state_dict(ck["norm"])
     return TorchPolicy(net, norm, device), ck

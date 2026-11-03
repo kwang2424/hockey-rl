@@ -223,6 +223,67 @@ class Config:
     # observation slot, so the skater can see the lockout and the observation
     # size -- and every existing checkpoint -- is unchanged.
     min_hold_time: float = 0.0
+
+    # ---- the net ------------------------------------------------------
+    # Give the net a back and sides. Off by default, so every experiment run
+    # before this flag existed reproduces exactly; NEW WORK SHOULD TURN IT ON.
+    #
+    # Without it the net is only a goal line: rink.in_goal counts any puck
+    # past the goal line within the posts' width, all the way back to the end
+    # boards, and nothing stops a puck entering that region from behind or
+    # the side. Measured over 384k steps of self-play: 997 of v8's 1104 goals
+    # (90%) and 793 of v6's 887 entered from behind or the side -- mostly
+    # pucks rimmed around the end boards -- against 189 of ChaseBot's 1743.
+    # The learned agents were exploiting the hole, which is why no reward or
+    # rule ever made them aim.
+    #
+    # With it, the net is a box goal_depth deep: its sides and back are solid
+    # for the puck and for skaters, and a goal is the puck crossing the goal
+    # line between the posts from the front, checked every physics substep.
+    solid_net: bool = False
+    net_restitution: float = 0.30       # puck off the netting/frame
+
+    # ---- scripted goalie -----------------------------------------------
+    # One scripted goalie per net. Off by default; with it off the game is
+    # bit-identical to the goalie-less one (tests/test_goalie.py).
+    #
+    # Why: without a goalie, nothing punishes a long, rough shot -- a 25 m
+    # shot 35 degrees off line still finds an empty net often enough to pay
+    # (aim-geometry), so the learners never had a reason to carry the puck in
+    # and aim. A goalie that blocks shots it has time to react to, and loses
+    # to shots it does not, makes distance and aim matter.
+    #
+    # The goalie is a solid circle that cannot be pushed. It stands on the
+    # line from the net centre to the puck, `goalie_depth` out, and when a
+    # loose puck is travelling at the net it moves onto the shot line
+    # instead. It sees the puck `goalie_reaction` seconds late and moves at
+    # most `goalie_max_speed`, so a long shot gives it time to get across and
+    # a quick close one does not. It never leaves its crease box
+    # (goalie_min_out..goalie_max_out in front of the goal line, at most
+    # goalie_max_lateral to either side), so it cannot chase the puck.
+    goalie: bool = False
+    goalie_radius: float = 0.45
+    goalie_depth: float = 0.80          # positioning distance from net centre
+    goalie_min_out: float = 0.30        # crease box, measured out from the goal line
+    goalie_max_out: float = 1.60
+    goalie_max_lateral: float = 1.20
+    goalie_max_angle: float = 1.40      # rad from straight out; ~80 degrees
+    goalie_max_speed: float = 4.0       # m/s
+    goalie_accel: float = 30.0          # m/s^2
+    goalie_gain: float = 10.0           # 1/s, position error -> desired speed
+    goalie_reaction: float = 0.20       # s, the goalie sees the puck this late
+    goalie_shot_speed: float = 5.0      # m/s toward the net that counts as a shot
+    goalie_restitution: float = 0.25    # puck off the pads
+    # Each goalie's skill is drawn per episode, uniformly in this range, and
+    # scales its speed and acceleration (skill 0 never moves from where it
+    # set at the faceoff). A fixed goalie makes the save/goal boundary a
+    # cliff -- aimed corner shots went from 90% in to 0% within 2-4 m in
+    # analysis/goalie_calibration.py -- and a spread of skill turns it into
+    # a slope. The trainer can also narrow or lower the range as a
+    # curriculum (VecHockeyEnv.goalie_skill_range).
+    goalie_skill_min: float = 0.25
+    goalie_skill_max: float = 1.0
+
     # Must match PPOConfig.gamma -- the shaping uses this one and GAE uses
     # that one, and if they diverge the shaping stops being policy-invariant.
     # tests/test_ppo.py asserts they agree.
