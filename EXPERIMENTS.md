@@ -111,7 +111,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | hold-aim | 0.5 s rule, +/- puck_goal_speed_rate=0.01, fine-tuned 20M from hold05 | 20M x 2 | on target 1.5% vs 1.9% | **fail**; post hoc, learners aim roughly (~35 deg) from centre ice, ChaseBot precisely (0.6 deg) from 17 m |
 | net-hole | where goals enter the net; then solid net + scripted goalie, calibrated | no training | 90% of v8's goals enter from behind/side | **sim bug**: the net had no back or sides; fixed behind `solid_net`, goalie added behind `goalie` |
 | goalie-v9 | v8 pipeline from scratch in the fixed game: 12 networks to 3M, best to 50M; goalie curriculum over 15M; rated vs SniperBot | 36M + 47M | 0 goals / 3 shots in self-play | **fail**: 12 of 12 networks never learn to score; all settle into the retreat-and-wait stuck state |
-| escape | two ways out of the stuck state in the fixed game, 8 runs each, 3M: puck-on-stick starts + proximity_rate from scratch; warm start from v8 | 3M x 16 | *running* | pre-registered in `analysis/escape_screen.py`: per arm, PASS iff >= 4 of 8 runs score |
+| escape | two ways out of the stuck state in the fixed game, 8 runs each, 3M: puck-on-stick starts + proximity_rate from scratch; warm start from v8 | 3M x 16 | 0 of 8 and 0 of 8 runs score | **fail, both arms**; warm runs score a little (1-3 goals per 128 games) by keeping v8's 27 m shots |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -1248,6 +1248,40 @@ puck-on-stick curriculum (carrier facing the net, defender goal-side),
 `proximity_rate` (non-potential, got every run to the puck in screen-prox,
 p=0.001), a longer static-goalie phase, and warm-starting from v8, which
 reaches the puck and shoots.
+
+### escape: neither scoring chances nor a warm start gets out
+
+Pre-registered in `analysis/escape_screen.py` (`runs/escape/result.log`). Solid-net
+goalie game, training goalie at full skill by 2M, 8 runs per arm, 3M steps,
+all measured against the full goalie.
+
+| arm | runs that score (self-play goals/ep >= 0.05) | self-play goals / shots, all runs | vs SniperBot, best run | typical shot |
+|---|---|---|---|---|
+| chances (puck-on-stick starts 0.5 -> 0, proximity_rate, from scratch) | **0 of 8** | 0 / 419 | 0-190 | 27-43 m, error 25-125 deg |
+| warm (v8 widened to see goalies, lr 1e-4) | **0 of 8** | 10 / 3286 | 0-162 | 26.9 m, error 35-46 deg |
+
+**Primary: fail, both arms.** The warm arm beats the chances arm on goals per
+shot (+0.003, permutation p = 0.001), but at 0.3% of shots that is no escape.
+
+What each arm shows:
+
+- **chances.** Even with half the resets handing a skater the puck 6-20 m
+  out, facing the net, against a goalie that never moves (skill 0 early on),
+  only about 1% of episodes ended in a goal (7 in 519 in s500's first 400k
+  steps), and that fell to almost nothing as the goalie got faster. The
+  calibration says a static goalie lets perfectly aimed corner shots in
+  ~95% of the time, but rough ones (sd 32 deg) only ~7%. A fresh network
+  shoots too roughly for the chances to pay often enough to learn from.
+- **warm.** The runs kept v8's shot almost exactly: 26.9 m out, ~37 deg
+  off. That is what v8 did in the old game (27.1 m, 31.5 deg), and with a
+  goalie it almost never scores. 3M steps at lr 1e-4 did not move it. v8's
+  habit is to shoot from centre ice on contact, so it never experiences the
+  carry-in that would pay.
+
+Across goalie-v9 and this screen, 28 of 28 runs fail to learn to score in the
+fixed game. The common problem: scoring needs a long chain (win the puck,
+carry it in to ~10 m, line up on a corner, shoot), none of it is rewarded
+until the end, and random exploration essentially never completes it.
 
 ## Practical notes
 
