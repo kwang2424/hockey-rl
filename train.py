@@ -22,7 +22,7 @@ import torch
 
 from hockey.config import DEFAULT
 from hockey.env import VecHockeyEnv
-from hockey.bots import ChaseBot, RandomBot
+from hockey.bots import ChaseBot, RandomBot, SniperBot
 from hockey.rating import rating, share_logit
 from hockey.rollout import play
 from rl.ppo import PPOTrainer, PPOConfig
@@ -79,7 +79,7 @@ def apply_overrides(pairs):
 
 
 BASE_FIELDS = ["update", "step", "elapsed_s", "sps", "ep_count", "goals_per_ep",
-               "mean_reward", "pool_frac", "curriculum", "nonfinite_skips",
+               "mean_reward", "pool_frac", "curriculum", "goalie_skill", "nonfinite_skips",
                "pg_loss", "v_loss", "entropy", "approx_kl", "grad_norm"]
 DEFAULT_ANCHORS = ("chase", "random",
                    "checkpoints/v2-control-gated-reward.pt",
@@ -187,6 +187,8 @@ def resolve_anchors(specs, seed=12345):
 
         if spec == "chase":
             pol = ChaseBot()
+        elif spec == "sniper":
+            pol = SniperBot()
         elif spec == "random":
             pol = RandomBot(seed=seed)
         else:
@@ -212,7 +214,11 @@ def evaluate(trainer, steps, envs, anchors, seed=12345):
     pol = trainer.policy()
     out, counts = {}, {}
     for key, opp in anchors:
-        s, _ = play(pol, opp, num_envs=envs, steps=steps, seed=seed)
+        # The game being trained, not the default one. (Before this was
+        # passed, every --set run was evaluated -- and its best.pt chosen --
+        # in the default game.) A fresh env from the Config, so training
+        # curricula never reach an eval.
+        s, _ = play(pol, opp, num_envs=envs, steps=steps, seed=seed, cfg=trainer.env.cfg)
         out[f"vs_{key}_goal_diff_per_min"] = round(s["goal_diff_per_min"], 3)
         out[f"vs_{key}_goals_for"] = s["goals_a"]
         out[f"vs_{key}_goals_against"] = s["goals_b"]
@@ -351,8 +357,10 @@ def main():
             trainer.set_lr(1.0)
 
         curriculum = trainer.set_curriculum((update - 1) / n_updates)
+        goalie_skill = trainer.set_goalie_curriculum()
         batch, rstats = trainer.collect()
         rstats["curriculum"] = round(curriculum, 4)
+        rstats["goalie_skill"] = round(goalie_skill, 4)
         lstats = trainer.learn_on(batch)
 
         if update % p.snapshot_every == 0:

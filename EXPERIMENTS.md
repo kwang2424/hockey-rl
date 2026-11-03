@@ -110,6 +110,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | hold-rule | fine-tune v8 20M under min_hold_time 0 / 0.2 / 0.5 s | 20M x 3 | on target 2.7% / 0.8% | **fail** on aiming; post hoc, the 0.5 s arm is far better vs ChaseBot (0.362 vs v8's 0.156), mostly defensively |
 | hold-aim | 0.5 s rule, +/- puck_goal_speed_rate=0.01, fine-tuned 20M from hold05 | 20M x 2 | on target 1.5% vs 1.9% | **fail**; post hoc, learners aim roughly (~35 deg) from centre ice, ChaseBot precisely (0.6 deg) from 17 m |
 | net-hole | where goals enter the net; then solid net + scripted goalie, calibrated | no training | 90% of v8's goals enter from behind/side | **sim bug**: the net had no back or sides; fixed behind `solid_net`, goalie added behind `goalie` |
+| goalie-v9 | v8 pipeline from scratch in the fixed game: 12 networks to 3M, best to 50M; goalie curriculum over 15M; rated vs SniperBot | 36M + 47M | *running* | pre-registered in `analysis/goalie_v9.py`: PASS iff self-play goals per shot >= 0.05 |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -1201,6 +1202,14 @@ hours of uptime with `--resume` nudges -- and is the honest next step before
 concluding the setup is at fault.
 
 ## Practical notes
+
+- **Until the goalie-v9 commit, training evaluations always played the
+  default game.** `train.evaluate` did not pass the run's Config to `play`,
+  so a run with a game-rule override (`--set min_hold_time=...`) had its
+  periodic evals -- and therefore its `best.pt` -- measured in the ordinary
+  game. Reward-only overrides were unaffected (rewards do not change play),
+  and the hold-rule and hold-aim verdicts were measured on `final.pt` in the
+  right game. Fixed; there is a test.
 
 - The container here restarts roughly hourly and kills training. `--resume`
   continues from `<out>/latest.pt` with optimizer state and opponent pool

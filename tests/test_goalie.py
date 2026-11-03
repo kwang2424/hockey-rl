@@ -228,3 +228,43 @@ def test_sniper_beats_the_goalie_where_chasebot_cannot():
     sn, _ = play(SniperBot(GOALIE), SniperBot(GOALIE), num_envs=64, steps=600, seed=2, cfg=GOALIE)
     ch, _ = play(ChaseBot(GOALIE), ChaseBot(GOALIE), num_envs=64, steps=600, seed=2, cfg=GOALIE)
     assert sn["goals_a"] + sn["goals_b"] > 5 * (ch["goals_a"] + ch["goals_b"] + 1)
+
+
+def test_goalie_curriculum_ramps_the_training_goalie_only():
+    from rl.ppo import PPOTrainer, PPOConfig
+    t = PPOTrainer(PPOConfig(num_envs=4, rollout_steps=8, goalie_curriculum_steps=1000), GOALIE)
+    t.global_step = 0
+    assert t.set_goalie_curriculum() == 0.0 and t.env.goalie_skill_range == (0.0, 0.0)
+    t.global_step = 500
+    assert t.set_goalie_curriculum() == 0.5
+    assert t.env.goalie_skill_range == pytest.approx((GOALIE.goalie_skill_min / 2,
+                                                      GOALIE.goalie_skill_max / 2))
+    t.global_step = 5000
+    assert t.set_goalie_curriculum() == 1.0
+    # An eval env is built from the Config: full skill regardless.
+    t.global_step = 0
+    t.set_goalie_curriculum()
+    ev = VecHockeyEnv(num_envs=4, cfg=t.env.cfg, seed=0)
+    assert ev.goalie_skill_range == (GOALIE.goalie_skill_min, GOALIE.goalie_skill_max)
+    # Off (the default) never touches the env.
+    off = PPOTrainer(PPOConfig(num_envs=4, rollout_steps=8), GOALIE)
+    assert off.set_goalie_curriculum() == 1.0
+    assert off.env.goalie_skill_range == (GOALIE.goalie_skill_min, GOALIE.goalie_skill_max)
+
+
+def test_evaluate_plays_the_game_being_trained():
+    from rl.ppo import PPOTrainer, PPOConfig
+    from train import evaluate, resolve_anchors
+    import hockey.rollout as ro, train as tr
+    seen = []
+    real = tr.play
+    def spy(*a, **k):
+        seen.append(k.get("cfg"))
+        return real(*a, **k)
+    tr.play = spy
+    try:
+        t = PPOTrainer(PPOConfig(num_envs=4, rollout_steps=8), GOALIE)
+        evaluate(t, 5, 2, resolve_anchors(["sniper", "random"]))
+    finally:
+        tr.play = real
+    assert seen and all(c is GOALIE for c in seen)

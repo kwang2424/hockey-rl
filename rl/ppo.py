@@ -90,6 +90,15 @@ class PPOConfig:
     curriculum_end: float = 0.0
     curriculum_frac: float = 0.6   # fraction of training spent annealing
 
+    # Goalie-skill curriculum (goalie game only), annealed on the training env
+    # only, like the puck-on-stick one. Over the first goalie_curriculum_steps
+    # environment steps the training goalies' skill range rises linearly from
+    # (0, 0) -- a static goalie that sets at the faceoff and never moves -- to
+    # the Config's (goalie_skill_min, goalie_skill_max). Measured in steps,
+    # not as a fraction of the run, so a short screen (--stop-at) and the
+    # long run it is the start of see the same schedule. 0 means off.
+    goalie_curriculum_steps: int = 0
+
     seed: int = 0
     # Seed for the network's initial weights ONLY; -1 means "same as seed".
     # Everything else -- environment stream, action sampling, opponent choice,
@@ -186,6 +195,17 @@ class PPOTrainer:
 
     def policy(self):
         return TorchPolicy(self.net, self.norm, self.device)
+
+    def set_goalie_curriculum(self):
+        """Set the training goalies' skill range for the current step; returns
+        the fraction of full skill. Eval envs are built from the Config, so
+        they always face the full-skill goalie."""
+        cfg = self.env.cfg
+        if not cfg.goalie or self.p.goalie_curriculum_steps <= 0:
+            return 1.0
+        f = min(1.0, self.global_step / self.p.goalie_curriculum_steps)
+        self.env.goalie_skill_range = (cfg.goalie_skill_min * f, cfg.goalie_skill_max * f)
+        return f
 
     def set_curriculum(self, progress: float):
         """Anneal the puck-on-stick rate. ``progress`` runs 0 -> 1 over training."""
