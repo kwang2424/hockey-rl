@@ -14,6 +14,7 @@ are measured from them and are otherwise unreproducible.
 | `stuck-example-3m.pt` | 3.0M | same config, a starting network that got stuck (2% goals) -- kept as the reference failure for the Game Tape | -- |
 | `v8-screened-50m.pt` | 50.0M | **same config**, starting network chosen by two-stage screening (init_seed 203, seed 17) | -- (see ladder) |
 | `hold05-v8-finetune.pt` | 50M + 20M | v8 fine-tuned under the settle-before-shooting rule (`min_hold_time=0.5`) -- plays that game, not the ordinary one; best learned result vs ChaseBot under it (124-219) | -- |
+| `bc-sniper.pt` | -- | behaviour-cloned from SniperBot in the solid-net goalie game (`rl/bc.py`); 38 inputs. The first network that scores there: 0.062 goals per shot in stochastic self-play, shots from ~6 m | -- |
 
 **All of these were trained in the open-net game** (`solid_net` off), where a
 puck entering the net from behind or beside it scores. 90% of v8's goals come

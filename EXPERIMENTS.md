@@ -112,6 +112,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | net-hole | where goals enter the net; then solid net + scripted goalie, calibrated | no training | 90% of v8's goals enter from behind/side | **sim bug**: the net had no back or sides; fixed behind `solid_net`, goalie added behind `goalie` |
 | goalie-v9 | v8 pipeline from scratch in the fixed game: 12 networks to 3M, best to 50M; goalie curriculum over 15M; rated vs SniperBot | 36M + 47M | 0 goals / 3 shots in self-play | **fail**: 12 of 12 networks never learn to score; all settle into the retreat-and-wait stuck state |
 | escape | two ways out of the stuck state in the fixed game, 8 runs each, 3M: puck-on-stick starts + proximity_rate from scratch; warm start from v8 | 3M x 16 | 0 of 8 and 0 of 8 runs score | **fail, both arms**; warm runs score a little (1-3 goals per 128 games) by keeping v8's 27 m shots |
+| bc-finetune | PPO from a behaviour-cloned SniperBot copy (`checkpoints/bc-sniper.pt`), 4 runs x 10M, lr 1e-4 | 10M x 4 | *running* | pre-registered in `analysis/bc_finetune.py`: keeps scoring (>= 3 of 4 at >= 0.05 goals/shot) and beats the start (>= 3 of 4) |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
