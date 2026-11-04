@@ -112,7 +112,7 @@ stops the shaping being potential-based with nothing visibly failing.
 | net-hole | where goals enter the net; then solid net + scripted goalie, calibrated | no training | 90% of v8's goals enter from behind/side | **sim bug**: the net had no back or sides; fixed behind `solid_net`, goalie added behind `goalie` |
 | goalie-v9 | v8 pipeline from scratch in the fixed game: 12 networks to 3M, best to 50M; goalie curriculum over 15M; rated vs SniperBot | 36M + 47M | 0 goals / 3 shots in self-play | **fail**: 12 of 12 networks never learn to score; all settle into the retreat-and-wait stuck state |
 | escape | two ways out of the stuck state in the fixed game, 8 runs each, 3M: puck-on-stick starts + proximity_rate from scratch; warm start from v8 | 3M x 16 | 0 of 8 and 0 of 8 runs score | **fail, both arms**; warm runs score a little (1-3 goals per 128 games) by keeping v8's 27 m shots |
-| bc-finetune | PPO from a behaviour-cloned SniperBot copy (`checkpoints/bc-sniper.pt`), 4 runs x 10M, lr 1e-4 | 10M x 4 | *running* | pre-registered in `analysis/bc_finetune.py`: keeps scoring (>= 3 of 4 at >= 0.05 goals/shot) and beats the start (>= 3 of 4) |
+| bc-finetune | PPO from a behaviour-cloned SniperBot copy (`checkpoints/bc-sniper.pt`), 4 runs x 10M, lr 1e-4 | 10M x 4 | keeps scoring 2 of 4, beats start 1 of 4 | **fail, both**; PPO shuts the game down -- self-play shots fall from 177 to 5-32 |
 
 Append a row per experiment. Record the losses; they are the entries that
 changed how this project was run.
@@ -1283,6 +1283,42 @@ Across goalie-v9 and this screen, 28 of 28 runs fail to learn to score in the
 fixed game. The common problem: scoring needs a long chain (win the puck,
 carry it in to ~10 m, line up on a corner, shoot), none of it is rewarded
 until the end, and random exploration essentially never completes it.
+
+### bc-finetune: PPO turns a scoring copy into a game with no shots
+
+Pre-registered in `analysis/bc_finetune.py` (`runs/bc-ft/result.log`). Start:
+`checkpoints/bc-sniper.pt`, behaviour-cloned from SniperBot by `rl/bc.py`
+(1.02M labelled states, noise on the moves played, clean labels). It is the
+first network to score in the solid-net goalie game. 4 PPO runs from it,
+10M steps, lr 1e-4, full-skill goalie throughout.
+
+| network | self-play goals / shots (128 envs x 600) | shot distance, heading error | vs SniperBot | vs BC start |
+|---|---|---|---|---|
+| **BC start** | **11 / 177** (0.062) | 6.2 m, 7.8 deg | 0-75 | -- |
+| s30 | 0 / 5 | 9.1 m, 118 deg | 0-96 | 0-1 |
+| s31 | 8 / 32 (0.250) | 1.9 m, 65 deg | 0-74 | 1-0 |
+| s32 | 0 / 21 | 3.3 m, 54 deg | 0-86 | 0-1 |
+| s33 | 1 / 8 (0.125) | 4.5 m, 59 deg | 1-101 | 0-1 |
+
+**Primary 1 (keeps scoring): fail, 2 of 4.** **Primary 2 (beats the start):
+fail, 1 of 4.** Both "passes" rest on tiny counts (8 of 32 and 1 of 8 shots;
+a 1-0 head to head), so the screen shows no improvement at all.
+
+What happened is clearer than the verdicts. Fine-tuning shut the game down:
+self-play shots fell from 177 to 5-32 and the head-to-heads against the
+start are 1-0 and 0-1. The copy's aim fell apart (8 deg -> 54-118 deg), and
+none of the runs got better against SniperBot. Defending is quicker to
+learn than the long scoring chain, so in self-play both sides learn to stop
+shots. Then there are no goals, the scoring skill gets no reinforcement, and
+it decays. This is the same stuck state, reached from above instead of from
+below.
+
+Remedies this points at (not tested): keep the network close to its teacher
+while it learns -- a kickstarting loss, a KL penalty towards the BC policy
+that is annealed away (Schmitt et al. 2018, "Kickstarting deep reinforcement
+learning"); and train some of the time against a fixed opponent that does not
+learn to shut the game down (SniperBot), so there are always goals to learn
+from.
 
 ## Practical notes
 
