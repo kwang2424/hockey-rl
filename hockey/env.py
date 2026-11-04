@@ -326,12 +326,6 @@ class VecHockeyEnv:
         r_a = cfg.goal_reward * (scored_a.astype(np.float64) - scored_b.astype(np.float64))
         r_a = r_a + shaping
 
-        # Per-step possession reward -- deliberately NOT part of the potential,
-        # because a potential cannot express "holding is good per unit time".
-        # See Config.possession_rate.
-        if cfg.possession_rate:
-            r_a = r_a + cfg.possession_rate * np.where(
-                self.possessor == 0, 1.0, np.where(self.possessor == 1, -1.0, 0.0))
         # Per-step proximity edge -- NOT part of the potential, because the
         # critic absorbs any potential and cancels it out of the advantages.
         # See Config.proximity_rate. Same blade-based distance as the
@@ -340,29 +334,7 @@ class VecHockeyEnv:
             ref = self.blade_points()[0] if cfg.proximity_from_blade else self.skater_pos
             to_puck = np.linalg.norm(self.puck_pos[:, None, :] - ref, axis=-1)
             r_a = r_a + cfg.proximity_rate * (to_puck[:, 1] - to_puck[:, 0]) / cfg.rink_length
-        # Per-step puck position, same geometry and loose-puck gate as the
-        # potential's position term. See Config.puck_position_rate.
-        if cfg.puck_position_rate:
-            d_opp = np.linalg.norm(self.puck_pos - self._goal_centers[0], axis=-1)
-            d_own = np.linalg.norm(self.puck_pos - self._goal_centers[1], axis=-1)
-            gate = np.where(self.possessor >= 0, 1.0, cfg.loose_puck_factor)
-            r_a = r_a + cfg.puck_position_rate * gate * (d_own - d_opp) / cfg.rink_length
-        # Puck velocity toward A's attacking net (zero-sum). See
-        # Config.puck_goal_speed_rate.
-        if cfg.puck_goal_speed_rate:
-            to_goal = self._goal_centers[0] - self.puck_pos
-            u = to_goal / np.maximum(np.linalg.norm(to_goal, axis=-1, keepdims=True), EPS)
-            r_a = r_a + cfg.puck_goal_speed_rate * (self.puck_vel * u).sum(-1) / cfg.puck_max_speed
         reward = np.stack([r_a, -r_a], axis=1)
-        # Each skater's own speed toward the puck -- NOT zero-sum, added per
-        # agent after the zero-sum part. See Config.approach_speed_rate.
-        if cfg.approach_speed_rate:
-            ref = self.blade_points()[0] if cfg.proximity_from_blade else self.skater_pos
-            to_puck = self.puck_pos[:, None, :] - ref
-            u = to_puck / np.maximum(np.linalg.norm(to_puck, axis=-1, keepdims=True), EPS)
-            closing = np.maximum((self.skater_vel * u).sum(-1), 0.0) / cfg.max_speed
-            reward = reward + cfg.approach_speed_rate * closing
-
         info = self._info(scored_a, scored_b, goal, truncated)
 
         done = goal | truncated

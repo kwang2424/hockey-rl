@@ -18,9 +18,9 @@ def test_obs_slices_are_contiguous_and_complete():
 def test_shapes_and_finiteness():
     env = VecHockeyEnv(num_envs=16, seed=0)
     obs = env.reset()
-    assert obs.shape == (16, 2, OBS_DIM) and obs.dtype == np.float32
+    assert obs.shape == (16, 2, env.obs_dim) and obs.dtype == np.float32
     obs, rew, goal, trunc, info = env.step(np.zeros((16, 2, ACT_DIM)))
-    assert obs.shape == (16, 2, OBS_DIM)
+    assert obs.shape == (16, 2, env.obs_dim)
     assert rew.shape == (16, 2)
     assert goal.shape == (16,) and trunc.shape == (16,)
     assert np.isfinite(obs).all() and np.isfinite(rew).all()
@@ -54,14 +54,12 @@ def test_reward_is_exactly_zero_sum():
         assert np.array_equal(rew[:, 0], -rew[:, 1])
 
 
-def test_reward_decomposes_into_exactly_three_known_terms():
-    """reward = goal + [gamma*Phi(s') - Phi(s)] + possession_rate.
+def test_reward_decomposes_into_goal_plus_potential_difference():
+    """reward = goal + [gamma*Phi(s') - Phi(s)], with every per-step rate off.
 
-    The middle bracket must be *exactly* a potential difference: that is what
-    makes it policy-invariant and unfarmable, and a mismatch here means the
-    shaping has grown a cycle. The third term is deliberately outside the
-    potential (a potential cannot reward duration -- see
-    Config.possession_rate), so it is pinned separately rather than folded in.
+    The bracket must be *exactly* a potential difference: that is what makes
+    it policy-invariant and unfarmable, and a mismatch here means the shaping
+    has grown a cycle.
     """
     env = VecHockeyEnv(num_envs=64, seed=3)
     rng = np.random.default_rng(4)
@@ -76,75 +74,10 @@ def test_reward_decomposes_into_exactly_three_known_terms():
         phi_after = np.where(goal, 0.0, env._potential())
         # `possessor` is post-step, and reset would clobber it, so the exact
         # check is restricted to envs that did not end this step.
-        rate = C.possession_rate * np.where(env.possessor == 0, 1.0,
-                                            np.where(env.possessor == 1, -1.0, 0.0))
         saw_possession |= bool((env.possessor[~ended] >= 0).any())
-        expected = goal_term + C.gamma * phi_after - phi_before + rate
+        expected = goal_term + C.gamma * phi_after - phi_before
         assert np.allclose(rew[~ended, 0], expected[~ended], atol=1e-12)
-    assert saw_possession, "test never exercised the possession-rate branch"
-
-
-def test_possession_rate_is_zero_sum_and_pays_per_step():
-    """Unlike the potential terms, this one must reward *duration*.
-
-    The mechanism is tested with the rate switched on explicitly, because the
-    default is 0.0: it shipped as part of v5, which the ladder puts barely
-    above random, so it is available rather than assumed. Turn it on with
-    --set possession_rate=<v>.
-    """
-    cfg_on = Config(possession_rate=0.0015)
-    env = VecHockeyEnv(num_envs=1, cfg=cfg_on, seed=13)
-    env.skater_pos[0] = [[0.0, 0.0], [-20.0, 9.0]]
-    env.skater_vel[:] = 0.0
-    env.theta[0] = [0.0, 0.0]
-    env.omega[:] = 0.0
-    env.puck_pos[:] = [cfg_on.blade_offset, 0.0]
-    env.puck_vel[:] = 0.0
-    env._update_possession()
-    assert env.possessor[0] == 0
-
-    total = 0.0
-    hold_steps = 0
-    for _ in range(20):
-        act = np.zeros((1, 2, ACT_DIM))
-        act[0, 0] = [0.0, 0.0, -1.0]          # hold: do not shoot
-        _, rew, _, _, _ = env.step(act)
-        assert rew[0, 0] == pytest.approx(-rew[0, 1])
-        if env.possessor[0] == 0:
-            hold_steps += 1
-            total += float(rew[0, 0])
-    assert hold_steps > 10, "skater failed to keep the puck on its blade"
-
-    # Differential check: rerun the identical scenario with the rate switched
-    # off. The gap must be exactly rate * held steps, which isolates this term
-    # from the discount drag the potential charges for sitting in a good state.
-    off = Config(possession_rate=0.0)
-    env2 = VecHockeyEnv(num_envs=1, cfg=off, seed=13)
-    env2.skater_pos[0] = [[0.0, 0.0], [-20.0, 9.0]]
-    env2.skater_vel[:] = 0.0
-    env2.theta[0] = [0.0, 0.0]
-    env2.omega[:] = 0.0
-    env2.puck_pos[:] = [off.blade_offset, 0.0]
-    env2.puck_vel[:] = 0.0
-    env2._update_possession()
-    total_off, hold_off = 0.0, 0
-    for _ in range(20):
-        act = np.zeros((1, 2, ACT_DIM))
-        act[0, 0] = [0.0, 0.0, -1.0]
-        _, rew, _, _, _ = env2.step(act)
-        if env2.possessor[0] == 0:
-            hold_off += 1
-            total_off += float(rew[0, 0])
-    assert hold_off == hold_steps, "the two runs must be physically identical"
-    assert total - total_off == pytest.approx(cfg_on.possession_rate * hold_steps, abs=1e-9)
-
-    # The differential above is the real invariant. Whether holding ends up
-    # net *positive* depends on gamma: the discount drag is (1-gamma)*Phi, and
-    # at the incumbent's gamma of 0.995 the drag exceeds every rate that also
-    # keeps a full-episode hoard below a goal. That window is empty here, and
-    # the earlier version of this test quietly assumed it was not.
-    assert total_off < 0.0, "a potential alone makes sitting on the puck cost you"
-    assert total > total_off
+    assert saw_possession, "test never saw a possession"
 
 
 def test_shaping_cannot_be_farmed_by_a_closed_loop():
@@ -438,90 +371,6 @@ def test_proximity_rate_off_by_default_leaves_rewards_bit_identical():
     assert np.array_equal(a, b)
 
 
-def _step_puck(cfg, seed=31, steps=40):
-    env = VecHockeyEnv(num_envs=16, cfg=cfg, seed=seed)
-    rng = np.random.default_rng(seed)
-    rs, edge = [], []
-    for _ in range(steps):
-        act = rng.uniform(-1, 1, (16, 2, ACT_DIM))
-        _, rew, goal, _, _ = env.step(act)
-        gc = env._goal_centers
-        e = (np.linalg.norm(env.puck_pos - gc[1], axis=-1)
-             - np.linalg.norm(env.puck_pos - gc[0], axis=-1))
-        gate = np.where(env.possessor >= 0, 1.0, C.loose_puck_factor)
-        rs.append(rew.copy()); edge.append(np.where(goal, np.nan, gate * e))
-    return np.array(rs), np.array(edge)
-
-
-def test_puck_position_rate_is_zero_sum():
-    rew, _ = _step_puck(Config(puck_position_rate=0.001))
-    assert np.allclose(rew[..., 0], -rew[..., 1])
-
-
-def test_puck_position_rate_pays_the_gated_positional_edge():
-    """Same seed and actions, on vs off: the only difference is
-    rate * gate * (d_own - d_opp) / L, positive with the puck in A's
-    attacking half, halved while loose."""
-    on, edge = _step_puck(Config(puck_position_rate=0.001))
-    off, _ = _step_puck(Config(puck_position_rate=0.0))
-    ok = ~np.isnan(edge)
-    assert np.allclose((on[..., 0] - off[..., 0])[ok],
-                       0.001 * edge[ok] / C.rink_length, atol=1e-12)
-
-
-def test_puck_position_rate_off_by_default_leaves_rewards_bit_identical():
-    a, _ = _step_puck(C)
-    b, _ = _step_puck(Config(puck_position_rate=0.0))
-    assert C.puck_position_rate == 0.0
-    assert np.array_equal(a, b)
-
-
-def _step_vel(cfg, seed=41, steps=40):
-    """Rewards plus the exact velocity quantities each knob should pay on."""
-    env = VecHockeyEnv(num_envs=16, cfg=cfg, seed=seed)
-    rng = np.random.default_rng(seed)
-    rs, closing, pgoal = [], [], []
-    for _ in range(steps):
-        act = rng.uniform(-1, 1, (16, 2, ACT_DIM))
-        _, rew, goal, _, _ = env.step(act)
-        blade = env.blade_points()[0]
-        tp = env.puck_pos[:, None, :] - blade
-        u = tp / np.linalg.norm(tp, axis=-1, keepdims=True)
-        c = np.maximum((env.skater_vel * u).sum(-1), 0.0) / C.max_speed
-        tg = env._goal_centers[0] - env.puck_pos
-        g = (env.puck_vel * tg / np.linalg.norm(tg, axis=-1, keepdims=True)).sum(-1) / C.puck_max_speed
-        mask = goal[:, None]
-        rs.append(rew.copy())
-        closing.append(np.where(mask, np.nan, c))
-        pgoal.append(np.where(goal, np.nan, g))
-    return np.array(rs), np.array(closing), np.array(pgoal)
-
-
-def test_puck_goal_speed_rate_is_zero_sum_and_exact():
-    on, _, g = _step_vel(Config(puck_goal_speed_rate=0.01))
-    off, _, _ = _step_vel(Config())
-    assert np.allclose(on[..., 0], -on[..., 1])
-    ok = ~np.isnan(g)
-    assert np.allclose((on[..., 0] - off[..., 0])[ok], 0.01 * g[ok], atol=1e-12)
-
-
-def test_approach_speed_rate_pays_each_skater_its_own_closing_speed():
-    """Individual, not zero-sum: each skater gets rate * max(0, v.u)/max_speed
-    on top of the zero-sum reward, and never a penalty for moving away."""
-    on, c, _ = _step_vel(Config(approach_speed_rate=0.001))
-    off, _, _ = _step_vel(Config())
-    ok = ~np.isnan(c)
-    extra = on - off
-    assert np.allclose(extra[ok], 0.001 * c[ok], atol=1e-12)
-    assert (extra[ok] >= -1e-15).all()
-    assert not np.allclose(on[..., 0], -on[..., 1])     # deliberately not zero-sum
-
-
-def test_velocity_rates_off_by_default_leave_rewards_bit_identical():
-    a, _, _ = _step_vel(C)
-    b, _, _ = _step_vel(Config(approach_speed_rate=0.0, puck_goal_speed_rate=0.0))
-    assert C.approach_speed_rate == 0.0 and C.puck_goal_speed_rate == 0.0
-    assert np.array_equal(a, b)
 
 
 def _held_env(min_hold, held_for):

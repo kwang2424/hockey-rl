@@ -5,65 +5,41 @@ Two rules, both bought with wasted compute.
 ## 1. Rank by head-to-head play, not by metrics
 
 ```bash
-python -m hockey.ladder --envs 192 --steps 600 --json ladder.json
+python -m hockey.ladder --envs 192 --steps 600 --json results/ladder.json
 ```
 
 Head-to-head is the only measurement in this project that ever contradicted a
 confident conclusion. Behavioural metrics, return curves and per-step reward
 arithmetic all agreed with each other and were wrong together.
 
-Current standings (192 envs x 600 steps per side, both ends played):
+The standings tables below are historical: they were measured in the
+open-net game (see net-hole), where most learned goals went in through the
+back of the net. In the current game (solid net, goalie) the reference
+players are SniperBot, ChaseBot and `checkpoints/bc-sniper.pt`, and no
+reinforcement-learning agent scores yet.
 
-| rank | entrant | goal share |
-|---|---|---|
-| 1 | `chase` (scripted) | 0.962 |
-| 2 | **`v2-control-gated-reward`** | **0.449** |
-| 3 | `v3-bounded-mean` | 0.333 |
-| 4 | `v0-baseline` | 0.217 |
-| 5 | `v5-repriced-shooting` | 0.076 |
-| 6 | `random` | 0.072 |
-| 7 | `exp-ent001` (entropy_coef 0.001) | 0.070 |
-| 8 | `exp-bounded` (bounded_mean on) | 0.056 |
+## Where things stand
 
-Shares shift slightly as entrants are added, since each plays everyone; the
-ordering is what matters.
+- **The game was wrong until net-hole.** The net had no back, and the
+  learned agents (v0-v8) built their play on rimming the puck in from
+  behind. Results before net-hole are measured facts about that game. Their
+  explanations of *why* the agents never aimed are superseded.
+- **The fixed game is the default** (`solid_net`, `goalie`). Reproduce
+  anything earlier with `Config(solid_net=False, goalie=False)`; that game is
+  pinned bit-identical by a test.
+- **Learning to score is the open problem.** 28 of 28 runs from scratch or
+  from v8 never score (goalie-v9, escape). A behaviour-cloned SniperBot copy
+  scores, but PPO fine-tuning shuts the game down (bc-finetune).
+- **Durable lessons**: seed variance is huge and set mostly by the starting
+  weights (seed-split); a potential-based shaping term is cancelled by an
+  accurate critic (corr(V, -Phi) = 0.995); measure behaviour first, because
+  every plateau so far was a bug or a reward error.
 
-Read that ordering carefully, because it is the opposite of the story the
-diagnostics told:
-
-- **v0 -> v2 helped** (0.169 -> 0.378). Gating the position term by puck
-  control was a real improvement.
-- **v2 -> v3 hurt** (0.378 -> 0.256). Bounding the policy mean fixed a genuine
-  and independently verifiable bug -- the actor's shoot output had run to
-  +3.50 against an action range of [-1, 1] -- and still made the player worse.
-- **v3 -> v5 hurt badly** (0.256 -> 0.063). Raising gamma and repricing four
-  weights left it barely above random.
-
-**v2 is the incumbent.** Beat it or the change is not an improvement.
-
-### Baseline hygiene: build on the incumbent, not on the latest code
-
-Before the first experiment, the defaults had to be moved back. They had
-drifted to v5's configuration -- gamma 0.998, `loose_puck_factor` 0.75,
-`possession_weight` 0.08, `proximity_weight` 0.6, `possession_rate` 0.0008,
-`bounded_mean` on -- which the ladder ranks at 0.063, barely above random.
-"One change against the incumbent" run from there would silently have been
-"v5 plus one change".
-
-Defaults now match v2 on every reward and PPO knob. Two deliberate exceptions:
-
-- `turn_accel` stays at 28.0. That is a physics correctness fix, not a tuning
-  choice: below it a hard turn braked a skater from 8.2 m/s to 1.4 m/s with
-  forward velocity going negative, which `hockey/drills.py` demonstrates
-  directly. v2 is *evaluated* under the fixed physics and still wins.
-- `bounded_mean` and `possession_rate` remain implemented but default off, so
-  each is one `--set` away from being tested properly.
-
-Three tests had to be rewritten, because they asserted beliefs the ladder
-contradicted -- most starkly one requiring the break-even shot rate to be
-under 20%, when the 30.5% configuration turned out to be the best learned
-policy and the 13.2% one nearly the worst. They now pin mechanisms and record
-quantities rather than asserting that a particular value is correct.
+The settings tested and found useless -- `possession_rate`,
+`puck_position_rate`, `approach_speed_rate`, `puck_goal_speed_rate` and the
+slow-critic option -- were removed in the cleanup after bc-finetune. Their
+experiments ran at commit b4b5ffa and earlier; the archived analysis scripts
+are in `analysis/archive/`.
 
 ## 2. One change per run
 
@@ -653,7 +629,7 @@ moved the stuck count by more than one run in eight.
 
 Twenty-four starting networks (the grid's four plus 100-119), all on the same
 game stream, no shaping, 3M steps -- only the weights vary. The analysis script
-(`analysis/init_survey.py`) was committed before any survey run existed.
+(`analysis/archive/init_survey.py`) was committed before any survey run existed.
 11 of 24 got stuck (46%). The four known networks kept their fates on a third
 machine (10 and 12 stuck, 11 and 17 not)~~, so weights-decide-fate is robust
 across hardware~~. *Correction (see "The reproducibility checks were broken"):* that is what determinism predicts, not evidence of
@@ -675,7 +651,7 @@ bad weights carry becomes visible only once learning starts.
 Eight of the 24 runs landed within 1.5 points of the 5% stuck cutoff, so the
 binary split partly measures noise at the boundary. Re-testing the same
 predictors against goal% as a continuous outcome
-(`analysis/init_survey_posthoc.py`, written after seeing the results):
+(`analysis/archive/init_survey_posthoc.py`, written after seeing the results):
 
 | predictor | Spearman vs goal% | p |
 |---|---|---|
@@ -697,7 +673,7 @@ which the goal rate in the training log is not.
 ### init-confirm: a real but weak signal, not confirmed
 
 Pre-registered replication of init-survey's post-hoc result on 24 networks it
-had never seen (`analysis/init_confirm.py`, committed before any run; the
+had never seen (`analysis/archive/init_confirm.py`, committed before any run; the
 measurement functions are imported from the survey, not copied). Run after an
 environment reset on a newer stack (torch 2.14.1, numpy 2.4.6).
 
@@ -739,7 +715,7 @@ What it means:
 The causal test of the race. Twelve starting networks from init-confirm (8
 stuck there, 4 healthy), each trained twice back to back on one machine:
 control, and the critic's learning rate x0.1 for the first 1M steps. Same
-starting weights in both arms. Pre-registered in `analysis/critic_slow.py`.
+starting weights in both arms. Pre-registered in `analysis/archive/critic_slow.py`.
 
 | network | before | control goal% | slowed critic goal% | alignment ctl / trt |
 |---|---|---|---|---|
@@ -798,7 +774,7 @@ is what bit-reproducible training predicts, not evidence of robustness.
 Hypothesis: critic-slow's harm to healthy networks came from holding the
 critic back for 1M steps when the race is settled within ~250k, so a 250k
 window would keep the gain and shed the cost. Identical design otherwise; the
-verdict script `analysis/critic_slow.py` unchanged, plus a stratum script
+verdict script `analysis/archive/critic_slow.py` unchanged, plus a stratum script
 committed before any run.
 
 | network | before | control | slowed 250k | (slowed 1M, critic-slow) |
@@ -864,7 +840,7 @@ stuck anyway, in line with init-confirm (it caught half the doomed runs out
 of sample). The two-stage screen still did its job, because stage 2 catches
 what stage 1 misses.
 
-Ladder over 7 entrants, both ends (`ladder-v8.json`):
+Ladder over 7 entrants, both ends (`results/ladder-v8.json`):
 
 | rank | entrant | goal share | vs v8 |
 |---|---|---|---|
@@ -897,7 +873,7 @@ v8 fires on 99% of the steps it holds the puck; possessions last one control
 step; 2% of its shots are on target (ChaseBot: 1%, 17 steps, 87%). Its shoot
 output while holding averages +3.66 against a firing threshold of 0 -- a
 learned preference. Three arms fine-tuned from v8 for 20M steps (lr 1e-4),
-one setting apart, analysis pre-registered in `analysis/puck_screen.py`:
+one setting apart, analysis pre-registered in `analysis/archive/puck_screen.py`:
 
 | arm | holding | fires while holding | on target | vs control |
 |---|---|---|---|---|
@@ -933,7 +909,7 @@ is not established by 3M; it forms later, by 5M in v8's run.
 
 From-scratch screen, 8 starting networks x three arms (control,
 possession_rate=0.0008, puck_goal_speed_rate=0.01), 3M steps, pre-registered
-in `analysis/puck_scratch.py`. Primary: paired fire-while-holding, over
+in `analysis/archive/puck_scratch.py`. Primary: paired fire-while-holding, over
 networks whose runs held the puck on >= 50 of ~154k agent-steps in both arms.
 
 **Verdict: insufficient data for both rewards** (1 eligible pair for
@@ -961,7 +937,7 @@ learn about it.
 `min_hold_time`: after picking up the puck a skater cannot shoot until it has
 held it that long; the time left shows in the existing shot-cooldown slot, so
 v8 can be fine-tuned. Three arms fine-tuned from v8 for 20M steps (lr 1e-4),
-pre-registered in `analysis/hold_rule.py`. Because the rule alone forces any
+pre-registered in `analysis/archive/hold_rule.py`. Because the rule alone forces any
 policy to hold, learned aiming is measured against the control network
 playing the same rule.
 
@@ -974,7 +950,7 @@ playing the same rule.
 
 The secondary numbers were large: under its rule the 0.5 s arm beat the
 control 222-46 and ChaseBot 124-219, against v8's 57-309. Both needed
-checking, post hoc (`analysis/hold_rule_posthoc.py`, written after the
+checking, post hoc (`analysis/archive/hold_rule_posthoc.py`, written after the
 results):
 
 - **Not carrying in.** About 1% of goals are scored with the scorer still
@@ -1002,7 +978,7 @@ the agent never held the puck; under the rule it now does.
 The follow-up to hold-rule: under the 0.5 s rule the agent holds the puck, so
 an aiming reward (`puck_goal_speed_rate`) can finally be collected. Two arms
 fine-tuned from `checkpoints/hold05-v8-finetune.pt` for 20M steps, both under
-the rule; pre-registered in `analysis/hold_aim.py`.
+the rule; pre-registered in `analysis/archive/hold_aim.py`.
 
 | self-play, 0.5 s rule | on target | possession | goals/min | vs ChaseBot |
 |---|---|---|---|---|
@@ -1014,7 +990,7 @@ rule -- 0.419 is the best learned result so far -- but not through aim.
 
 #### Why aiming never moves: shot geometry (post hoc)
 
-`analysis/aim_geometry.py`, written after the result. "On target" needs the
+`analysis/archive/aim_geometry.py`, written after the result. "On target" needs the
 shot's line inside a 1.83 m goal mouth: about +/-2-3.5 degrees of heading from
 15-25 m. The aiming reward pays velocity toward the goal, so a shot 20 degrees
 off earns 94% of the maximum -- a reward too blunt for that window was the
@@ -1205,8 +1181,8 @@ concluding the setup is at fault.
 
 ### goalie-v9: from scratch, the fixed game never gets off the ground
 
-Pre-registered in `analysis/goalie_v9.py`, run with
-`analysis/goalie_v9_run.sh`: the v8 screening pipeline, from scratch, in the
+Pre-registered in `analysis/archive/goalie_v9.py`, run with
+`analysis/archive/goalie_v9_run.sh`: the v8 screening pipeline, from scratch, in the
 solid-net goalie game (training goalie's skill ramped from static to full
 over 15M steps; every eval faced the full goalie).
 
@@ -1252,7 +1228,7 @@ reaches the puck and shoots.
 
 ### escape: neither scoring chances nor a warm start gets out
 
-Pre-registered in `analysis/escape_screen.py` (`runs/escape/result.log`). Solid-net
+Pre-registered in `analysis/archive/escape_screen.py` (`runs/escape/result.log`). Solid-net
 goalie game, training goalie at full skill by 2M, 8 runs per arm, 3M steps,
 all measured against the full goalie.
 
@@ -1286,7 +1262,7 @@ until the end, and random exploration essentially never completes it.
 
 ### bc-finetune: PPO turns a scoring copy into a game with no shots
 
-Pre-registered in `analysis/bc_finetune.py` (`runs/bc-ft/result.log`). Start:
+Pre-registered in `analysis/archive/bc_finetune.py` (`runs/bc-ft/result.log`). Start:
 `checkpoints/bc-sniper.pt`, behaviour-cloned from SniperBot by `rl/bc.py`
 (1.02M labelled states, noise on the moves played, clean labels). It is the
 first network to score in the solid-net goalie game. 4 PPO runs from it,

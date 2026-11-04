@@ -115,6 +115,12 @@ class Renderer:
             self._circle(d, nose, cfg.skater_radius * 0.3, fill=(250, 250, 252))
             self._circle(d, blade[a], cfg.capture_radius * 0.36, fill=(60, 44, 32))
 
+        if "goalie_pos" in snap:
+            # Goalie k guards net k (0 is the +x net, team B's): a ring in the
+            # colour of the team it plays for.
+            for k, g in enumerate(snap["goalie_pos"][env_idx]):
+                self._circle(d, g, cfg.goalie_radius, fill=ICE, outline=TEAM[1 - k], width=3)
+
         self._circle(d, snap["puck_pos"][env_idx], max(cfg.puck_radius * 3.2, 0.16), fill=PUCK)
 
         if score is not None:

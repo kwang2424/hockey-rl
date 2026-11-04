@@ -105,30 +105,6 @@ class Config:
     # antisymmetric. tests/test_env.py enforces this.
     loose_puck_factor: float = 0.5
 
-    # Per-step reward for holding the puck. THIS ONE IS NOT POTENTIAL-BASED,
-    # and that is deliberate.
-    #
-    # A state potential cannot reward *duration*: it pays the transition into
-    # possession and charges the transition out, so a 25-step possession nets
-    # strictly less than a 1-step one (only the discount drag differs). No
-    # value of possession_weight can make the policy want to carry the puck --
-    # which is why raising it from 0.08 to 0.20 changed nothing.
-    #
-    # The cost of fixing that is the policy-invariance guarantee: unlike every
-    # other term here, this one CAN change which policy is optimal, and its
-    # failure mode is the classic one -- hoard the puck in a corner and never
-    # shoot. hockey.diagnose flags exactly that (fire_while_holding near zero
-    # with long possessions), so it is watched rather than assumed away.
-    # Still exactly zero-sum: the holder gains it, the other skater loses it.
-    #
-    # The rate must exceed the discount drag while holding, or carrying still
-    # loses money, and stay well under goal_reward/max_episode_steps or
-    # hoarding for a whole episode competes with scoring. At 0.0008 a
-    # full-episode hold is worth 0.48 against a goal's 1.00, so scoring
-    # strictly dominates. The earlier 0.0015 made it 0.90 -- close enough to a
-    # goal that the policy drifted towards keeping the puck and not shooting.
-    # At gamma 0.995 no value satisfied both bounds at all.
-    possession_rate: float = 0.0
     # Being closer to the puck than your opponent. Written as a *difference*
     # between the two skaters so the potential stays antisymmetric and the
     # reward stays exactly zero-sum. This is the term that gets a fresh policy
@@ -171,44 +147,8 @@ class Config:
     # (antisymmetric in the two skaters). Unlike the potential it CAN change
     # which policy is optimal, so keep it small against a goal: at 0.003 and
     # a typical 10m edge, a full episode is worth about 0.3 goals, under the
-    # goal_reward / max_episode_steps bound possession_rate is held to.
+    # goal_reward / max_episode_steps bound.
     proximity_rate: float = 0.0
-    # The potential's puck-position term -- puck nearer their net than yours,
-    # halved while loose -- paid per step instead, for the same reason as
-    # proximity_rate: the critic learns -Phi and cancels the potential version
-    # out of every advantage. screen-prox showed the dead state has two
-    # layers; proximity_rate removed the first (every treated run now reaches
-    # the puck) but three of eight reached it and still did not score, and the
-    # "move the puck toward their goal" hint is cancelled in exactly the same
-    # way. Default off.
-    #
-    # The risk this term invites is sitting on the puck deep in the attacking
-    # end instead of shooting, so it is sized against the worst case, not the
-    # typical one: puck held at their goal line for a whole episode is
-    # 600 * 0.87 * 0.001 = 0.52 goals, so scoring still dominates, and scoring
-    # at once (forfeiting the remaining stream) still nets about +0.5.
-    puck_position_rate: float = 0.0
-    # RLGym-style shaping, after the Rocket League PPO community's practice
-    # (RLGym-PPO-Guide, rewards.md): pay for VELOCITY, not position. A skater
-    # hovering at the puck or parked on it deep in the attacking end has zero
-    # velocity and earns nothing -- the two exploits position-based rates
-    # invite, and the one screen-prox actually produced (3/8 runs reached the
-    # puck and did not score). Both default off.
-    #
-    # approach_speed_rate: each skater's own speed toward the puck, positive
-    # part only, as a fraction of max_speed. Deliberately NOT zero-sum: per the
-    # same guide, a reward should be zero-sum only if the opponent benefits
-    # from preventing it, and making "skate at the puck" relative to a copy of
-    # yourself only adds noise. Positive-only so that skating back to defend
-    # is not punished. At 0.001 a full episode at full speed toward the puck
-    # is 0.6 goals, but that cannot be sustained -- arriving ends it.
-    approach_speed_rate: float = 0.0
-    # puck_goal_speed_rate: puck velocity toward the opponent's net, as a
-    # fraction of puck_max_speed. Zero-sum, and negative when the puck heads
-    # for your own net. Its time integral is roughly net puck displacement
-    # toward goal, so it is bounded by the rink and cannot be farmed by
-    # bouncing the puck back and forth.
-    puck_goal_speed_rate: float = 0.0
     # "Settle the puck before shooting": a skater cannot shoot until it has
     # held the puck for this long (seconds). Off by default (0.0).
     #
@@ -225,8 +165,10 @@ class Config:
     min_hold_time: float = 0.0
 
     # ---- the net ------------------------------------------------------
-    # Give the net a back and sides. Off by default, so every experiment run
-    # before this flag existed reproduces exactly; NEW WORK SHOULD TURN IT ON.
+    # Give the net a back and sides. On by default since the cleanup after
+    # bc-finetune; every experiment before goalie-v9 ran with it off (and
+    # goalie off), so reproduce those with Config(solid_net=False,
+    # goalie=False), at commit b4b5ffa or earlier.
     #
     # Without it the net is only a goal line: rink.in_goal counts any puck
     # past the goal line within the posts' width, all the way back to the end
@@ -240,12 +182,12 @@ class Config:
     # With it, the net is a box goal_depth deep: its sides and back are solid
     # for the puck and for skaters, and a goal is the puck crossing the goal
     # line between the posts from the front, checked every physics substep.
-    solid_net: bool = False
+    solid_net: bool = True
     net_restitution: float = 0.30       # puck off the netting/frame
 
     # ---- scripted goalie -----------------------------------------------
-    # One scripted goalie per net. Off by default; with it off the game is
-    # bit-identical to the goalie-less one (tests/test_goalie.py).
+    # One scripted goalie per net. On by default (see solid_net). With both
+    # off, the game is bit-identical to the original one (tests/test_goalie.py).
     #
     # Why: without a goalie, nothing punishes a long, rough shot -- a 25 m
     # shot 35 degrees off line still finds an empty net often enough to pay
@@ -261,7 +203,7 @@ class Config:
     # a quick close one does not. It never leaves its crease box
     # (goalie_min_out..goalie_max_out in front of the goal line, at most
     # goalie_max_lateral to either side), so it cannot chase the puck.
-    goalie: bool = False
+    goalie: bool = True
     goalie_radius: float = 0.45
     goalie_depth: float = 0.80          # positioning distance from net centre
     goalie_min_out: float = 0.30        # crease box, measured out from the goal line

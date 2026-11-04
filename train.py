@@ -81,9 +81,9 @@ def apply_overrides(pairs):
 BASE_FIELDS = ["update", "step", "elapsed_s", "sps", "ep_count", "goals_per_ep",
                "mean_reward", "pool_frac", "curriculum", "goalie_skill", "nonfinite_skips",
                "pg_loss", "v_loss", "entropy", "approx_kl", "grad_norm"]
-DEFAULT_ANCHORS = ("chase", "random",
-                   "checkpoints/v2-control-gated-reward.pt",
-                   "checkpoints/v6-100m-compute.pt")
+# Rating anchors for the default (solid-net, goalie) game. The old ones -- v2
+# and v6 -- were measured in the open-net game and almost never score here.
+DEFAULT_ANCHORS = ("sniper", "chase", "random", "checkpoints/bc-sniper.pt")
 
 EVAL_METRICS = ("goal_diff_per_min", "goals_for", "goals_against", "possession")
 

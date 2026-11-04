@@ -111,5 +111,5 @@ def test_goalie_games_add_goalies_without_breaking_v1():
     for fr in t["frames"]:
         assert len(fr["goalies"]) == 2
         assert fr["goalies"][0][0] > 0 > fr["goalies"][1][0]     # 0 guards +x
-    plain = record(ChaseBot(), ChaseBot(), steps=5, seed=0)
+    plain = record(ChaseBot(), ChaseBot(), steps=5, seed=0, cfg=replace(C, goalie=False))
     assert "goalies" not in plain["frames"][0] and "goalie_radius" not in plain["rink"]

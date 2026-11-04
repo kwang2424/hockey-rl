@@ -12,6 +12,7 @@ from hockey.env import (VecHockeyEnv, OBS_DIM, GOALIE_OBS_DIM, GOALIE_OBS_SLICES
 from hockey import rink
 
 GOALIE = replace(DEFAULT, goalie=True, solid_net=True)
+OPEN = replace(DEFAULT, goalie=False, solid_net=False)     # the original game
 
 
 def _roll(cfg, steps=200, n=16, seed=4):
@@ -27,16 +28,34 @@ def _roll(cfg, steps=200, n=16, seed=4):
 
 
 # ---------------------------------------------------------------- defaults
-def test_both_flags_default_off():
-    assert DEFAULT.goalie is False and DEFAULT.solid_net is False
-    assert obs_dim_for(DEFAULT) == OBS_DIM
+def test_default_is_the_goalie_game():
+    assert DEFAULT.goalie is True and DEFAULT.solid_net is True
+    assert obs_dim_for(DEFAULT) == OBS_DIM + GOALIE_OBS_DIM
+    assert obs_dim_for(OPEN) == OBS_DIM
+
+
+def test_open_game_is_bit_identical_to_the_original():
+    """A fingerprint of 700 random-action steps of the open-net game, recorded
+    with both flags off at commit b4b5ffa (the original game's code). If
+    this fails after a numpy upgrade alone, regenerate it at b4b5ffa with the
+    same code; if it fails after a sim change, that change leaked into the
+    original game and every experiment before goalie-v9 no longer reproduces."""
+    import hashlib
+    env = VecHockeyEnv(32, OPEN, seed=5)
+    rng = np.random.default_rng(1)
+    h = hashlib.sha256()
+    h.update(env.reset().tobytes())
+    for _ in range(700):
+        o, r, *_ = env.step(rng.uniform(-1, 1, (32, 2, 3)))
+        h.update(o.tobytes()); h.update(r.tobytes()); h.update(env.puck_pos.tobytes())
+    assert h.hexdigest() == "21ff64cb6c8d39d2e956537d485cb3fcba9c437bb8f27f8243c9a0d10093a046"
 
 
 def test_goalie_knobs_do_nothing_while_the_goalie_is_off():
     """With goalie and solid_net off, no goalie or net parameter can reach the
     game: the base game stays exactly the one every earlier experiment ran."""
-    _, o0, r0 = _roll(DEFAULT)
-    tweaked = replace(DEFAULT, goalie_radius=2.0, goalie_max_speed=50.0,
+    _, o0, r0 = _roll(OPEN)
+    tweaked = replace(OPEN, goalie_radius=2.0, goalie_max_speed=50.0,
                       goalie_reaction=0.5, goalie_skill_min=0.0, net_restitution=0.9)
     env, o1, r1 = _roll(tweaked)
     assert np.array_equal(o0, o1) and np.array_equal(r0, r1)
@@ -143,14 +162,14 @@ def test_open_net_counts_pucks_from_behind_and_solid_net_does_not():
     gx = DEFAULT.goal_line_x
     pos = np.array([[gx + 1.5, 4.0], [gx + 0.6, -4.0], [gx + 2.0, 3.0]])
     vel = np.array([[0.0, -15.0], [0.0, 15.0], [-6.0, -12.0]])     # behind / beside
-    assert _goals(_puck_only_env(DEFAULT, pos, vel)).all()
-    solid = replace(DEFAULT, solid_net=True)
+    assert _goals(_puck_only_env(OPEN, pos, vel)).all()
+    solid = replace(OPEN, solid_net=True)
     assert not _goals(_puck_only_env(solid, pos, vel)).any()
 
 
 def test_solid_net_still_scores_through_the_mouth():
     gx = DEFAULT.goal_line_x
-    solid = replace(DEFAULT, solid_net=True)
+    solid = replace(OPEN, solid_net=True)
     pos = np.array([[gx - 8.0, 0.0], [gx - 6.0, 2.0], [-gx + 5.0, -1.0]])
     aim = np.array([[gx, 0.5], [gx, 0.3], [-gx, -0.6]]) - pos
     vel = 25.0 * aim / np.linalg.norm(aim, axis=-1, keepdims=True)

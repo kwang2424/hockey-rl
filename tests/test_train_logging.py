@@ -135,7 +135,11 @@ def test_init_from_loads_weights_and_normaliser_exactly():
     from hockey.config import DEFAULT
     from rl.ppo import PPOConfig, PPOTrainer
     src = "checkpoints/v8-screened-50m.pt"
-    tr = PPOTrainer(PPOConfig(num_envs=4, rollout_steps=8, seed=17), DEFAULT)
+    from dataclasses import replace
+    # v8 has 34 inputs: load it into the open-net game it was trained in,
+    # where no widening happens. (Widening is tested in test_goalie.py.)
+    open_net = replace(DEFAULT, solid_net=False, goalie=False)
+    tr = PPOTrainer(PPOConfig(num_envs=4, rollout_steps=8, seed=17), open_net)
     before = torch.get_rng_state()
     train.init_from_checkpoint(tr, src)
     assert torch.equal(before, torch.get_rng_state())          # draws no randomness

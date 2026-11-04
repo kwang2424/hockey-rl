@@ -27,7 +27,6 @@ The policy's spread (log_std) is set, not learned: max likelihood would
 shrink it to the tiny imitation error and leave PPO nothing to explore with.
 """
 import argparse
-from dataclasses import replace
 
 import numpy as np
 import torch
@@ -37,7 +36,7 @@ from hockey.config import DEFAULT
 from hockey.env import VecHockeyEnv, ACT_DIM
 from rl.ppo import PPOTrainer, PPOConfig
 
-GAME = replace(DEFAULT, solid_net=True, goalie=True)
+GAME = DEFAULT          # the solid-net goalie game
 
 
 def record(cfg=GAME, envs=256, steps=3000, move_noise=0.3, flip_shoot=0.02, seed=0):

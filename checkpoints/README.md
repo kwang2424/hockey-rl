@@ -33,7 +33,7 @@ Among the older three, `v3` is strongest: it beats `v0` 67-39 with ends
 swapped, and ties `v2` (65-81, CI includes 0.5).
 
 `v8` is the strongest learned checkpoint, and the first to beat every earlier
-one head to head: v7 160-64, v6 137-101, v2 120-61 (`ladder-v8.json`). Those
+one head to head: v7 160-64, v6 137-101, v2 120-61 (`results/ladder-v8.json`). Those
 are comparisons between specific trained networks, where evaluation noise is
 the relevant error (about +/-0.06 in goal share), and the margins clear it. It
 is NOT evidence that screening beats ordinary training: it is one run, picked
